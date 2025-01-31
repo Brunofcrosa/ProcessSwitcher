@@ -7,10 +7,8 @@ namespace ProcessSwitcher
 {
     public partial class Form1 : Form
     {
-        private const int MOD_ALT = 0x0001; // Tecla ALT
-        private const int MOD_CONTROL = 0x0002; // Tecla CTRL
-        private const int MOD_SHIFT = 0x0004; // Tecla SHIFT
-        private const int MOD_WIN = 0x0008; // Tecla WINDOWS
+        private const int SW_RESTORE = 9;
+        private const int MaxProcesses = 10; 
 
         [DllImport("user32.dll")]
         public static extern int RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -24,31 +22,29 @@ namespace ProcessSwitcher
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        const int SW_RESTORE = 9;
-
-        private Process? process1; // Agora é anulável
-        private Process? process2; // Agora é anulável
-
-        private const int HotkeyF1 = 1;
-        private const int HotkeyF2 = 2;
+        private Process?[] processes = new Process?[MaxProcesses]; 
 
         public Form1()
         {
             InitializeComponent();
-            LoadProcesses(); // Carrega os processos
-            RegisterGlobalHotkeys(); // Registra os atalhos globais
+            LoadProcesses(); 
+            RegisterGlobalHotkeys(); 
         }
 
         private void RegisterGlobalHotkeys()
         {
-            RegisterHotKey(this.Handle, HotkeyF1, 0, (int)Keys.F1); // F1
-            RegisterHotKey(this.Handle, HotkeyF2, 0, (int)Keys.F2); // F2
+            for (int i = 0; i < MaxProcesses; i++)
+            {
+                RegisterHotKey(this.Handle, i + 1, 0, (int)Keys.F1 + i);
+            }
         }
 
         private void UnregisterGlobalHotkeys()
         {
-            UnregisterHotKey(this.Handle, HotkeyF1); // F1
-            UnregisterHotKey(this.Handle, HotkeyF2); // F2
+            for (int i = 0; i < MaxProcesses; i++)
+            {
+                UnregisterHotKey(this.Handle, i + 1);
+            }
         }
 
         protected override void WndProc(ref Message m)
@@ -57,13 +53,9 @@ namespace ProcessSwitcher
             if (m.Msg == WM_HOTKEY)
             {
                 int hotkeyId = m.WParam.ToInt32();
-                if (hotkeyId == HotkeyF1) // F1
+                if (hotkeyId >= 1 && hotkeyId <= MaxProcesses)
                 {
-                    SwitchToProcess(process1);
-                }
-                else if (hotkeyId == HotkeyF2) // F2
-                {
-                    SwitchToProcess(process2);
+                    SwitchToProcess(processes[hotkeyId - 1]);
                 }
             }
             base.WndProc(ref m);
@@ -85,30 +77,36 @@ namespace ProcessSwitcher
 
         private void LoadProcesses()
         {
-            var allProcesses = Process.GetProcesses();
+            var allProcesses = Process.GetProcessesByName("elementclient_64"); 
+            int index = 0;
+
             foreach (var process in allProcesses)
             {
-                if (process.ProcessName.Contains("elementclient")) // Ajuste para o nome do processo desejado
+                if (index < MaxProcesses)
                 {
-                    if (process1 == null)
-                    {
-                        process1 = process; // Primeiro processo para F1
-                    }
-                    else if (process2 == null)
-                    {
-                        process2 = process; // Segundo processo para F2
-                    }
-
-                    if (process1 != null && process2 != null)
-                    {
-                        break; // Já encontrou dois processos
-                    }
+                    processes[index] = process;
+                    index++;
+                }
+                else
+                {
+                    break; 
                 }
             }
 
-            if (process1 == null || process2 == null)
+            if (index < 2)
             {
-                MessageBox.Show("Não foi possível encontrar dois processos válidos.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Não foi possível encontrar dois ou mais processos válidos.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            
+            comboBoxProcesses.Items.Clear();
+            for (int i = 0; i < index; i++)
+            {
+                comboBoxProcesses.Items.Add($"elementclient {i + 1} - {processes[i]?.Id}");
+            }
+            if (comboBoxProcesses.Items.Count > 0)
+            {
+                comboBoxProcesses.SelectedIndex = 0;
             }
         }
 
@@ -117,25 +115,41 @@ namespace ProcessSwitcher
             UnregisterGlobalHotkeys();
         }
 
-        private void Form1_KeyDown(object sender, KeyEventArgs e)
-        {
-            // Lógica para quando uma tecla é pressionada
-        }
-
-        private void comboBoxProcesses_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            // Lógica para quando o processo for selecionado no ComboBox
-        }
-
         private void btnSwitchProcess_Click(object sender, EventArgs e)
         {
-            // Lógica para alternar entre os processos
-            SwitchToProcess(process1); // Ou process2, conforme a lógica desejada.
+            if (comboBoxProcesses.SelectedIndex >= 0 && comboBoxProcesses.SelectedIndex < MaxProcesses)
+            {
+                SwitchToProcess(processes[comboBoxProcesses.SelectedIndex]);
+            }
         }
 
         private void btnSetHotkeys_Click(object sender, EventArgs e)
         {
-            // Lógica para configurar os atalhos de teclado
+            RegisterGlobalHotkeys();
+        }
+
+        private void comboBoxProcesses_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void Form1_KeyDown(object sender, KeyEventArgs e)
+        {
+            
+            if (e.KeyCode >= Keys.F1 && e.KeyCode <= Keys.F10)
+            {
+                int index = e.KeyCode - Keys.F1; 
+                if (index >= 0 && index < processes.Length)
+                {
+                    SwitchToProcess(processes[index]);
+                }
+            }
+        }
+
+        private void btnRefreshList_Click(object sender, EventArgs e)
+        {
+            LoadProcesses(); 
+            MessageBox.Show("Lista de processos atualizada.", "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

@@ -12,3 +12,4 @@ C:\Users\Administrator\Desktop\Teste\ProcessSwitcher\obj\Debug\net9.0-windows\re
 C:\Users\Administrator\Desktop\Teste\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.pdb
 C:\Users\Administrator\Desktop\Teste\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.genruntimeconfig.cache
 C:\Users\Administrator\Desktop\Teste\ProcessSwitcher\obj\Debug\net9.0-windows\ref\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\Teste\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.sourcelink.json
