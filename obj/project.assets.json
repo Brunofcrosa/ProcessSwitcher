@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Administrator\\Desktop\\testexwexce\\ProcessSwitcher\\ProcessSwitcher.csproj",
+      "projectUniqueName": "C:\\Users\\Administrator\\Desktop\\ProcessSwitcher\\ProcessSwitcher.csproj",
       "projectName": "ProcessSwitcher",
-      "projectPath": "C:\\Users\\Administrator\\Desktop\\testexwexce\\ProcessSwitcher\\ProcessSwitcher.csproj",
+      "projectPath": "C:\\Users\\Administrator\\Desktop\\ProcessSwitcher\\ProcessSwitcher.csproj",
       "packagesPath": "C:\\Users\\Administrator\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Administrator\\Desktop\\testexwexce\\ProcessSwitcher\\obj\\",
+      "outputPath": "C:\\Users\\Administrator\\Desktop\\ProcessSwitcher\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Administrator\\AppData\\Roaming\\NuGet\\NuGet.Config"
