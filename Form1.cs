@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -8,7 +10,14 @@ namespace ProcessSwitcher
     public partial class Form1 : Form
     {
         private const int SW_RESTORE = 9;
-        private const int MaxProcesses = 10; 
+        private const int MaxProcesses = 10;
+        private const string ConfigFile = "hotkeys.config";
+
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
 
         [DllImport("user32.dll")]
         public static extern int RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
@@ -16,26 +25,92 @@ namespace ProcessSwitcher
         [DllImport("user32.dll")]
         public static extern int UnregisterHotKey(IntPtr hWnd, int id);
 
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        [DllImport("user32.dll")]
-        public static extern bool SetForegroundWindow(IntPtr hWnd);
-
-        private Process?[] processes = new Process?[MaxProcesses]; 
+        private Process?[] processes = new Process?[MaxProcesses];
+        private Dictionary<Keys, int> hotkeyMapping = new Dictionary<Keys, int>();
+        private Dictionary<int, ComboBox> hotkeySelectors = new Dictionary<int, ComboBox>();
 
         public Form1()
         {
             InitializeComponent();
-            LoadProcesses(); 
-            RegisterGlobalHotkeys(); 
+            LoadHotkeys();
+            LoadProcesses();
+            RegisterGlobalHotkeys();
+        }
+
+        private void LoadProcesses()
+        {
+            var allProcesses = Process.GetProcessesByName("elementclient_64");
+            processPanel.Controls.Clear();
+            hotkeySelectors.Clear();
+            int index = 0;
+
+            foreach (var process in allProcesses)
+            {
+                if (index < MaxProcesses)
+                {
+                    processes[index] = process;
+
+                    
+                    Label processLabel = new Label
+                    {
+                        Text = $"elementclient {index + 1} - {process.Id}",
+                        AutoSize = true,
+                        Width = 180
+                    };
+
+                    
+                    ComboBox hotkeySelector = new ComboBox
+                    {
+                        Width = 80,
+                        DropDownStyle = ComboBoxStyle.DropDownList
+                    };
+
+                    foreach (Keys key in Enum.GetValues(typeof(Keys)))
+                    {
+                        if (key >= Keys.F1 && key <= Keys.F12)
+                            hotkeySelector.Items.Add(key);
+                    }
+
+                    hotkeySelector.SelectedIndexChanged += (sender, e) =>
+                    {
+                        if (hotkeySelector.SelectedItem != null)
+                        {
+                            Keys selectedKey = (Keys)hotkeySelector.SelectedItem;
+                            hotkeyMapping[selectedKey] = index;
+                            SaveHotkeys();
+                            RegisterGlobalHotkeys();
+                        }
+                    };
+
+                    
+                    foreach (var kvp in hotkeyMapping)
+                    {
+                        if (kvp.Value == index)
+                        {
+                            hotkeySelector.SelectedItem = kvp.Key;
+                            break;
+                        }
+                    }
+
+                    hotkeySelectors[index] = hotkeySelector;
+
+                    
+                    FlowLayoutPanel row = new FlowLayoutPanel { Width = 270, Height = 30 };
+                    row.Controls.Add(processLabel);
+                    row.Controls.Add(hotkeySelector);
+                    processPanel.Controls.Add(row);
+
+                    index++;
+                }
+            }
         }
 
         private void RegisterGlobalHotkeys()
         {
-            for (int i = 0; i < MaxProcesses; i++)
+            UnregisterGlobalHotkeys();
+            foreach (var kvp in hotkeyMapping)
             {
-                RegisterHotKey(this.Handle, i + 1, 0, (int)Keys.F1 + i);
+                RegisterHotKey(this.Handle, kvp.Value + 1, 0, (int)kvp.Key);
             }
         }
 
@@ -52,10 +127,10 @@ namespace ProcessSwitcher
             const int WM_HOTKEY = 0x0312;
             if (m.Msg == WM_HOTKEY)
             {
-                int hotkeyId = m.WParam.ToInt32();
-                if (hotkeyId >= 1 && hotkeyId <= MaxProcesses)
+                int id = m.WParam.ToInt32() - 1;
+                if (id >= 0 && id < MaxProcesses)
                 {
-                    SwitchToProcess(processes[hotkeyId - 1]);
+                    SwitchToProcess(processes[id]);
                 }
             }
             base.WndProc(ref m);
@@ -65,48 +140,34 @@ namespace ProcessSwitcher
         {
             if (process != null && process.MainWindowHandle != IntPtr.Zero)
             {
-                IntPtr hwnd = process.MainWindowHandle;
-                ShowWindow(hwnd, SW_RESTORE);
-                SetForegroundWindow(hwnd);
-            }
-            else
-            {
-                MessageBox.Show("Não foi possível alternar para o processo selecionado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ShowWindow(process.MainWindowHandle, SW_RESTORE);
+                SetForegroundWindow(process.MainWindowHandle);
             }
         }
 
-        private void LoadProcesses()
+        private void SaveHotkeys()
         {
-            var allProcesses = Process.GetProcessesByName("elementclient_64"); 
-            int index = 0;
-
-            foreach (var process in allProcesses)
+            using (StreamWriter writer = new StreamWriter(ConfigFile))
             {
-                if (index < MaxProcesses)
+                foreach (var kvp in hotkeyMapping)
                 {
-                    processes[index] = process;
-                    index++;
-                }
-                else
-                {
-                    break; 
+                    writer.WriteLine($"{kvp.Key}:{kvp.Value}");
                 }
             }
+        }
 
-            if (index < 2)
+        private void LoadHotkeys()
+        {
+            if (File.Exists(ConfigFile))
             {
-                MessageBox.Show("Não foi possível encontrar dois ou mais processos válidos.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-
-            
-            comboBoxProcesses.Items.Clear();
-            for (int i = 0; i < index; i++)
-            {
-                comboBoxProcesses.Items.Add($"elementclient {i + 1} - {processes[i]?.Id}");
-            }
-            if (comboBoxProcesses.Items.Count > 0)
-            {
-                comboBoxProcesses.SelectedIndex = 0;
+                foreach (var line in File.ReadAllLines(ConfigFile))
+                {
+                    var parts = line.Split(':');
+                    if (Enum.TryParse(parts[0], out Keys key) && int.TryParse(parts[1], out int index))
+                    {
+                        hotkeyMapping[key] = index;
+                    }
+                }
             }
         }
 
@@ -114,42 +175,30 @@ namespace ProcessSwitcher
         {
             UnregisterGlobalHotkeys();
         }
+        private void btnUpdateHotkeys_Click(object sender, EventArgs e)
+{
+    hotkeyMapping.Clear();
 
-        private void btnSwitchProcess_Click(object sender, EventArgs e)
+    foreach (var kvp in hotkeySelectors)
+    {
+        if (kvp.Value.SelectedItem != null)
         {
-            if (comboBoxProcesses.SelectedIndex >= 0 && comboBoxProcesses.SelectedIndex < MaxProcesses)
-            {
-                SwitchToProcess(processes[comboBoxProcesses.SelectedIndex]);
-            }
-        }
-
-        private void btnSetHotkeys_Click(object sender, EventArgs e)
-        {
-            RegisterGlobalHotkeys();
-        }
-
-        private void comboBoxProcesses_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            
-        }
-
-        private void Form1_KeyDown(object sender, KeyEventArgs e)
-        {
-            
-            if (e.KeyCode >= Keys.F1 && e.KeyCode <= Keys.F10)
-            {
-                int index = e.KeyCode - Keys.F1; 
-                if (index >= 0 && index < processes.Length)
-                {
-                    SwitchToProcess(processes[index]);
-                }
-            }
-        }
-
-        private void btnRefreshList_Click(object sender, EventArgs e)
-        {
-            LoadProcesses(); 
-            MessageBox.Show("Lista de processos atualizada.", "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Keys selectedKey = (Keys)kvp.Value.SelectedItem;
+            hotkeyMapping[selectedKey] = kvp.Key;
         }
     }
+
+    SaveHotkeys();
+    RegisterGlobalHotkeys();
+    MessageBox.Show("Atalhos atualizados com sucesso!", "Sucesso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+}
+
+private void btnRefreshProcesses_Click(object sender, EventArgs e)
+{
+    LoadProcesses();
+    MessageBox.Show("Lista de processos atualizada.", "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Information);
+}
+
+    }
+    
 }
