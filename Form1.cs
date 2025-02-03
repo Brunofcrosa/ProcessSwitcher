@@ -53,7 +53,7 @@ namespace ProcessSwitcher
                     
                     Label processLabel = new Label
                     {
-                        Text = $"elementclient {index + 1} - {process.Id}",
+                        Text = $"{process.MainWindowTitle} ",
                         AutoSize = true,
                         Width = 180
                     };
