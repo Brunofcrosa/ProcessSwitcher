@@ -336,26 +336,28 @@ private void LoadFinalizerProcess()
         return;
     }
 
-    // Criar uma lista ordenada até o processo finalizador
     List<Process> orderedProcesses = new List<Process>();
+    Process firstProcess = null;
     bool foundFinalizer = false;
 
     foreach (var process in processes)
     {
         if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
         {
+            if (firstProcess == null)
+                firstProcess = process; // Guarda o primeiro processo da lista
+
             orderedProcesses.Add(process);
-            
-            // Se encontramos o finalizador, paramos de adicionar processos
+
             if (process.Id == finalizerProcessId)
             {
                 foundFinalizer = true;
-                break;
+                break; // Para de adicionar processos ao encontrar o finalizador
             }
         }
     }
 
-    // Agora, enviamos as teclas para todos os processos na lista ordenada
+    // Enviar teclas para todos os processos na lista ordenada
     foreach (var process in orderedProcesses)
     {
         ShowWindow(process.MainWindowHandle, SW_RESTORE);
@@ -365,7 +367,18 @@ private void LoadFinalizerProcess()
         SendKeysToProcess();
         System.Threading.Thread.Sleep(200);
     }
+
+    // Voltar para o primeiro processo e enviar as teclas novamente
+    if (firstProcess != null)
+    {
+        ShowWindow(firstProcess.MainWindowHandle, SW_RESTORE);
+        SwitchToProcess(firstProcess);
+        System.Threading.Thread.Sleep(100);
+
+        SendKeysToProcess();
+    }
 }
+
 
 
         private void SendKeysToProcess()
