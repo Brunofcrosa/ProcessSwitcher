@@ -6,7 +6,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-
 namespace ProcessSwitcher
 {
     public partial class Form1 : Form
@@ -29,6 +28,7 @@ namespace ProcessSwitcher
         private List<Process> processes = new List<Process>();
         private Dictionary<Keys, int> hotkeyMapping = new Dictionary<Keys, int>();
         private Dictionary<int, TextBox> hotkeySelectors = new Dictionary<int, TextBox>();
+        private Keys sendKeysHotkey = Keys.None;
 
         public Form1()
         {
@@ -40,19 +40,17 @@ namespace ProcessSwitcher
 
         private void LoadProcesses()
         {
-            var allProcesses = Process.GetProcessesByName("elementclient_64");
+            processes = Process.GetProcessesByName("elementclient_64").ToList();
             processPanel.Controls.Clear();
             hotkeySelectors.Clear();
 
             var processHotkeys = hotkeyMapping
-                .Where(kvp => kvp.Value < 10)
+                .Where(kvp => kvp.Value < processes.Count)
                 .ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
 
-            int index = 0;
-
-            foreach (var process in allProcesses)
+            for (int index = 0; index < processes.Count; index++)
             {
-                processes.Add(process);
+                var process = processes[index];
 
                 Label processLabel = new Label
                 {
@@ -64,32 +62,29 @@ namespace ProcessSwitcher
                 TextBox hotkeyTextBox = new TextBox
                 {
                     Width = 80,
-                    ReadOnly = true
+                    ReadOnly = true,
+                    Text = processHotkeys.ContainsKey(index) ? processHotkeys[index].ToString() : string.Empty
                 };
 
-
-                if (processHotkeys.ContainsKey(index))
-                {
-                    hotkeyTextBox.Text = processHotkeys[index].ToString();
-                }
-
-                hotkeyTextBox.Click += (sender, e) =>
-                {
-                    hotkeyTextBox.ReadOnly = false;
-                };
+                hotkeyTextBox.Click += (sender, e) => hotkeyTextBox.ReadOnly = false;
 
                 hotkeyTextBox.KeyDown += (sender, e) =>
                 {
-
                     if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu)
                         return;
 
-                    hotkeyTextBox.Text = e.KeyCode.ToString();
+                    
+                    var existingKey = hotkeyMapping.FirstOrDefault(kvp => kvp.Value == index).Key;
+                    if (existingKey != Keys.None)
+                    {
+                        hotkeyMapping.Remove(existingKey);
+                    }
+
+                    
                     hotkeyMapping[e.KeyCode] = index;
+                    hotkeyTextBox.Text = e.KeyCode.ToString();
                     SaveHotkeys();
                     RegisterGlobalHotkeys();
-
-
                     hotkeyTextBox.ReadOnly = true;
                 };
 
@@ -99,26 +94,35 @@ namespace ProcessSwitcher
                 row.Controls.Add(processLabel);
                 row.Controls.Add(hotkeyTextBox);
                 processPanel.Controls.Add(row);
-
-                index++;
             }
         }
-
 
         private void RegisterGlobalHotkeys()
         {
             UnregisterGlobalHotkeys();
+
+            
             foreach (var kvp in hotkeyMapping)
             {
-                RegisterHotKey(this.Handle, kvp.Value + 1, 0, (int)kvp.Key);
+                
+                int id = kvp.Key.GetHashCode() % 1000; 
+                RegisterHotKey(this.Handle, id, 0, (int)kvp.Key);
+            }
+
+            
+            if (sendKeysHotkey != Keys.None)
+            {
+                int id = sendKeysHotkey.GetHashCode() % 1000;
+                RegisterHotKey(this.Handle, id, 0, (int)sendKeysHotkey);
             }
         }
 
         private void UnregisterGlobalHotkeys()
         {
-            for (int i = 0; i < 10; i++)
+            
+            for (int i = 0; i <= 1000; i++)
             {
-                UnregisterHotKey(this.Handle, i + 1);
+                UnregisterHotKey(this.Handle, i);
             }
         }
 
@@ -127,10 +131,24 @@ namespace ProcessSwitcher
             const int WM_HOTKEY = 0x0312;
             if (m.Msg == WM_HOTKEY)
             {
-                int id = m.WParam.ToInt32() - 1;
-                if (id >= 0 && id < processes.Count)
+                int id = m.WParam.ToInt32();
+
+                if (id == sendKeysHotkey.GetHashCode() % 1000)
                 {
-                    SwitchToProcess(processes[id]);
+                    SendKeysToAllProcesses();
+                }
+                else
+                {
+                    
+                    var key = hotkeyMapping.FirstOrDefault(kvp => kvp.Key.GetHashCode() % 1000 == id).Key;
+                    if (hotkeyMapping.ContainsKey(key))
+                    {
+                        int index = hotkeyMapping[key];
+                        if (index >= 0 && index < processes.Count)
+                        {
+                            SwitchToProcess(processes[index]);
+                        }
+                    }
                 }
             }
             base.WndProc(ref m);
@@ -140,20 +158,16 @@ namespace ProcessSwitcher
         {
             if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
             {
+                
                 ShowWindow(process.MainWindowHandle, SW_RESTORE);
+                
                 SetForegroundWindow(process.MainWindowHandle);
             }
         }
 
         private void SaveHotkeys()
         {
-            using (StreamWriter writer = new StreamWriter(ConfigFile))
-            {
-                foreach (var kvp in hotkeyMapping)
-                {
-                    writer.WriteLine($"{kvp.Key}:{kvp.Value}");
-                }
-            }
+            File.WriteAllLines(ConfigFile, hotkeyMapping.Select(kvp => $"{kvp.Key}:{kvp.Value}"));
         }
 
         private void LoadHotkeys()
@@ -179,7 +193,6 @@ namespace ProcessSwitcher
         private void btnUpdateHotkeys_Click(object sender, EventArgs e)
         {
             hotkeyMapping.Clear();
-
             foreach (var kvp in hotkeySelectors)
             {
                 if (Enum.TryParse(kvp.Value.Text, out Keys selectedKey))
@@ -197,6 +210,54 @@ namespace ProcessSwitcher
         {
             LoadProcesses();
             MessageBox.Show("Lista de processos atualizada.", "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void txtSendKeysHotkey_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu)
+                return;
+
+            sendKeysHotkey = e.KeyCode;
+            txtSendKeysHotkey.Text = e.KeyCode.ToString();
+            RegisterGlobalHotkeys();
+        }
+
+        private void SendKeysToAllProcesses()
+{
+    if (processes.Count == 0)
+    {
+        MessageBox.Show("Nenhum processo encontrado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
+
+    foreach (var process in processes)
+    {
+        if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
+        {
+            
+            ShowWindow(process.MainWindowHandle, SW_RESTORE);
+
+            
+            SwitchToProcess(process);
+
+            
+            System.Threading.Thread.Sleep(100);
+
+            
+            SendKeysToProcess();
+
+            
+            System.Threading.Thread.Sleep(200);
+        }
+    }
+}
+
+        private void SendKeysToProcess()
+        {
+            for (int i = 1; i <= 8; i++)
+            {
+                SendKeys.SendWait($"{{F{i}}}");
+            }
         }
     }
 }
