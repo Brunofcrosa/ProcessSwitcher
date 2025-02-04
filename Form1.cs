@@ -31,6 +31,8 @@ namespace ProcessSwitcher
         private Keys sendKeysHotkey = Keys.None;
         private const string TitlesFile = "titles.config";
         private Dictionary<int, string> customTitles = new Dictionary<int, string>();
+        private HashSet<int> hiddenProcesses = new HashSet<int>();
+
 
 
         public Form1()
@@ -55,6 +57,8 @@ namespace ProcessSwitcher
     for (int index = 0; index < processes.Count; index++)
     {
         var process = processes[index];
+
+        
 
         TextBox titleTextBox = new TextBox
         {
@@ -105,9 +109,9 @@ namespace ProcessSwitcher
 
         hotkeySelectors[process.Id] = hotkeyTextBox;
 
-        PictureBox dragIcon = new PictureBox
+         PictureBox trashIcon = new PictureBox
         {
-            Image = Image.FromFile("Resources/drag_icon.ico"),
+            Image = Image.FromFile("Resources/trash.png"), // Certifique-se que este ícone existe na pasta Resources
             SizeMode = PictureBoxSizeMode.Zoom,
             Width = 20,
             Height = 20,
@@ -121,49 +125,58 @@ namespace ProcessSwitcher
             Tag = process.Id
         };
 
+        trashIcon.Click += (sender, e) =>
+        {
+            hiddenProcesses.Add(process.Id);
+            processPanel.Controls.Remove(row);
+        };
+
+        PictureBox dragIcon = new PictureBox
+        {
+            Image = Image.FromFile("Resources/drag_icon.ico"),
+            SizeMode = PictureBoxSizeMode.Zoom,
+            Width = 20,
+            Height = 20,
+            Cursor = Cursors.Hand
+        };
+
+        row.Controls.Add(titleTextBox);
+        row.Controls.Add(hotkeyTextBox);
+        
+
+        processPanel.Controls.Add(row);
         dragIcon.MouseDown += (sender, e) =>
         {
             processPanel.DoDragDrop(row, DragDropEffects.Move);
         };
 
-        CheckBox finalizerCheckBox = new CheckBox
+        CheckBox selectedCheckBox = new CheckBox
         {
-            Checked = (finalizerProcessId == process.Id), // Se já foi salvo, marcar como finalizador
-            Text = "Parar",
-            AutoSize = true
+            Text = "",
+            AutoSize = true,
+            Checked = false // Todos os processos começam selecionados
         };
 
-        finalizerCheckBox.CheckedChanged += (sender, e) =>
+        selectedCheckBox.CheckedChanged += (sender, e) =>
         {
-            if (finalizerCheckBox.Checked)
+            // Atualizar a lista de processos selecionados
+            if (selectedCheckBox.Checked)
             {
-                finalizerProcessId = process.Id;
-                SaveFinalizerProcess(); // Salva no arquivo de configuração
+                // Marque o processo como selecionado
+                selectedProcesses.Add(process.Id);
             }
-            else if (finalizerProcessId == process.Id)
+            else
             {
-                finalizerProcessId = -1; // Nenhum processo marcado
-                SaveFinalizerProcess();
-            }
-
-            // Atualiza a interface para garantir que apenas um esteja marcado
-            foreach (var control in processPanel.Controls)
-            {
-                if (control is FlowLayoutPanel row)
-                {
-                    var checkBox = row.Controls.OfType<CheckBox>().FirstOrDefault();
-                    if (checkBox != null && checkBox != finalizerCheckBox)
-                    {
-                        checkBox.Checked = false;
-                    }
-                }
+                // Remova o processo da lista de selecionados
+                selectedProcesses.Remove(process.Id);
             }
         };
 
         row.Controls.Add(dragIcon);
         row.Controls.Add(titleTextBox);
         row.Controls.Add(hotkeyTextBox);
-        row.Controls.Add(finalizerCheckBox);
+        row.Controls.Add(trashIcon);
+        row.Controls.Add(selectedCheckBox);
 
         processPanel.Controls.Add(row);
     }
@@ -171,7 +184,46 @@ namespace ProcessSwitcher
 
 private int finalizerProcessId = -1; // Guarda o ID do processo finalizador
 private const string FinalizerFile = "finalizer.config"; // Arquivo para salvar a escolha
+private HashSet<int> selectedProcesses = new HashSet<int>();
 
+private void SendKeysToSelectedProcesses()
+{
+    if (selectedProcesses.Count == 0)
+    {
+        MessageBox.Show("Nenhum processo selecionado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
+
+    List<Process> orderedProcesses = new List<Process>();
+
+    // Filtra os processos selecionados
+    foreach (var process in processes)
+    {
+        if (selectedProcesses.Contains(process.Id) && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
+        {
+            orderedProcesses.Add(process);
+        }
+    }
+
+    // Enviar teclas para os processos selecionados
+    foreach (var process in orderedProcesses)
+    {
+        ShowWindow(process.MainWindowHandle, SW_RESTORE);
+        SwitchToProcess(process);
+        System.Threading.Thread.Sleep(100);
+
+        SendKeysToProcess();
+        System.Threading.Thread.Sleep(200);
+    }
+}
+
+private void SendKeysToProcess()
+{
+    for (int i = 1; i <= 8; i++)
+    {
+        SendKeys.SendWait($"{{F{i}}}");
+    }
+}
 private void SaveFinalizerProcess()
 {
     File.WriteAllText(FinalizerFile, finalizerProcessId.ToString());
@@ -330,9 +382,9 @@ private void LoadFinalizerProcess()
 
         private void SendKeysToAllProcesses()
 {
-    if (processes.Count == 0)
+    if (selectedProcesses.Count == 0)
     {
-        MessageBox.Show("Nenhum processo encontrado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        MessageBox.Show("Nenhum processo selecionado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
         return;
     }
 
@@ -342,7 +394,7 @@ private void LoadFinalizerProcess()
 
     foreach (var process in processes)
     {
-        if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
+        if (selectedProcesses.Contains(process.Id) && process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
         {
             if (firstProcess == null)
                 firstProcess = process; // Guarda o primeiro processo da lista
@@ -357,7 +409,7 @@ private void LoadFinalizerProcess()
         }
     }
 
-    // Enviar teclas para todos os processos na lista ordenada
+    // Enviar teclas para os processos selecionados na lista ordenada
     foreach (var process in orderedProcesses)
     {
         ShowWindow(process.MainWindowHandle, SW_RESTORE);
@@ -381,13 +433,7 @@ private void LoadFinalizerProcess()
 
 
 
-        private void SendKeysToProcess()
-        {
-            for (int i = 1; i <= 8; i++)
-            {
-                SendKeys.SendWait($"{{F{i}}}");
-            }
-        }
+        
 
         private void ProcessPanel_DragEnter(object sender, DragEventArgs e)
         {
