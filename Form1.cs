@@ -389,8 +389,7 @@ private void LoadFinalizerProcess()
     }
 
     List<Process> orderedProcesses = new List<Process>();
-    Process firstProcess = null;
-    bool foundFinalizer = false;
+    Process? firstProcess = null;
 
     foreach (var process in processes)
     {
@@ -403,7 +402,7 @@ private void LoadFinalizerProcess()
 
             if (process.Id == finalizerProcessId)
             {
-                foundFinalizer = true;
+                
                 break; // Para de adicionar processos ao encontrar o finalizador
             }
         }
@@ -452,7 +451,9 @@ private void LoadFinalizerProcess()
             {
                 int oldIndex = processPanel.Controls.GetChildIndex(draggedRow);
 
-                int newIndex = (int?)(processPanel.PointToClient(new Point(e.X, e.Y)).Y / draggedRow.Height) ?? 0;
+                int newIndex = processPanel.PointToClient(new Point(e.X, e.Y)).Y / draggedRow.Height;
+newIndex = newIndex < 0 ? 0 : newIndex;  // Garantir que o índice não seja negativo.
+
 
                 if (newIndex >= processPanel.Controls.Count)
                 {

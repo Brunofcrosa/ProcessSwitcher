@@ -10,7 +10,6 @@ namespace ProcessSwitcher
         private FlowLayoutPanel processPanel;
         private Button btnUpdateHotkeys;
         private Button btnRefreshProcesses;
-        private Button btnSendKeys;
         private TextBox txtSendKeysHotkey;
         private Label lblSendKeysHotkey;
 
@@ -89,7 +88,7 @@ processPanel.AllowDrop = true;
             this.Controls.Add(this.processPanel);
             this.Controls.Add(this.btnRefreshProcesses);
             this.Controls.Add(this.btnUpdateHotkeys);
-            this.Controls.Add(this.btnSendKeys);
+            
             this.Controls.Add(lblBelowButtons); 
             this.Controls.Add(lblBelowButtons2); 
             this.Controls.Add(this.lblSendKeysHotkey);

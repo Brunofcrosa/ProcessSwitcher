@@ -6,12 +6,16 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Resources\pwicon.ico</ApplicationIcon>
     
   </PropertyGroup>
   <ItemGroup>
-    <None Update="Resources\check.ico">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <None Update="Resources\check.ico" CopyToPublishDirectory="PreserveNewest"/>
+    <None Update="Resources\drag_icon.ico" CopyToPublishDirectory="PreserveNewest"/>
+    <None Update="Resources\list.ico" CopyToPublishDirectory="PreserveNewest"/>
+    <None Update="Resources\refresh.ico" CopyToPublishDirectory="PreserveNewest"/>
+    <None Update="Resources\trash.png" CopyToPublishDirectory="PreserveNewest"/>
+    <None Update="Resources\pwicon.ico" CopyToPublishDirectory="PreserveNewest"/>
 </ItemGroup>
 
 </Project>

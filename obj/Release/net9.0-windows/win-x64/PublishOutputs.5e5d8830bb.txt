@@ -1,0 +1,8 @@
+C:\Users\Administrator\Desktop\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\ProcessSwitcher.pdb
+C:\Users\Administrator\Desktop\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\Resources\check.ico
+C:\Users\Administrator\Desktop\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\Resources\drag_icon.ico
+C:\Users\Administrator\Desktop\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\Resources\list.ico
+C:\Users\Administrator\Desktop\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\Resources\pwicon.ico
+C:\Users\Administrator\Desktop\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\Resources\refresh.ico
+C:\Users\Administrator\Desktop\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\Resources\trash.png
+C:\Users\Administrator\Desktop\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\ProcessSwitcher.exe
