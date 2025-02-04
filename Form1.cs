@@ -43,98 +43,147 @@ namespace ProcessSwitcher
         }
 
         private void LoadProcesses()
+{
+    processes = Process.GetProcessesByName("elementclient_64").ToList();
+    processPanel.Controls.Clear();
+    hotkeySelectors.Clear();
+
+    var processHotkeys = hotkeyMapping
+        .Where(kvp => processes.Any(p => p.Id == kvp.Value))
+        .ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
+
+    for (int index = 0; index < processes.Count; index++)
+    {
+        var process = processes[index];
+
+        TextBox titleTextBox = new TextBox
         {
-            processes = Process.GetProcessesByName("elementclient_64").ToList();
-            processPanel.Controls.Clear();
-            hotkeySelectors.Clear();
+            Width = 90,
+            Text = customTitles.ContainsKey(process.Id) ? customTitles[process.Id] : process.MainWindowTitle,
+            TextAlign = HorizontalAlignment.Center
+        };
 
-            var processHotkeys = hotkeyMapping
-                .Where(kvp => processes.Any(p => p.Id == kvp.Value))
-                .ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
+        titleTextBox.TextChanged += (sender, e) =>
+        {
+            customTitles[process.Id] = titleTextBox.Text;
+            SaveCustomTitles();
+        };
 
-            for (int index = 0; index < processes.Count; index++)
+        RoundedTextBox hotkeyTextBox = new RoundedTextBox
+        {
+            Width = 50,
+            BorderRadius = 15,
+            BorderColor = Color.Gray,
+            BackgroundColor = Color.White,
+            ReadOnly = true,
+            Text = processHotkeys.ContainsKey(process.Id) ? processHotkeys[process.Id].ToString() : string.Empty
+        };
+
+        hotkeyTextBox.Click += (sender, e) =>
+        {
+            hotkeyTextBox.ReadOnly = false;
+            hotkeyTextBox.BorderColor = Color.Blue;
+        };
+
+        hotkeyTextBox.Leave += (sender, e) =>
+        {
+            hotkeyTextBox.ReadOnly = true;
+            hotkeyTextBox.BorderColor = Color.Gray;
+        };
+
+        hotkeyTextBox.KeyDown += (sender, e) =>
+        {
+            if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu)
+                return;
+
+            hotkeyTextBox.Text = e.KeyCode.ToString();
+            hotkeyMapping[e.KeyCode] = process.Id;
+            hotkeyTextBox.ReadOnly = true;
+            SaveHotkeys();
+            RegisterGlobalHotkeys();
+        };
+
+        hotkeySelectors[process.Id] = hotkeyTextBox;
+
+        PictureBox dragIcon = new PictureBox
+        {
+            Image = Image.FromFile("Resources/drag_icon.ico"),
+            SizeMode = PictureBoxSizeMode.Zoom,
+            Width = 20,
+            Height = 20,
+            Cursor = Cursors.Hand
+        };
+
+        FlowLayoutPanel row = new FlowLayoutPanel
+        {
+            Width = 450,
+            Height = 30,
+            Tag = process.Id
+        };
+
+        dragIcon.MouseDown += (sender, e) =>
+        {
+            processPanel.DoDragDrop(row, DragDropEffects.Move);
+        };
+
+        CheckBox finalizerCheckBox = new CheckBox
+        {
+            Checked = (finalizerProcessId == process.Id), // Se já foi salvo, marcar como finalizador
+            Text = "Parar",
+            AutoSize = true
+        };
+
+        finalizerCheckBox.CheckedChanged += (sender, e) =>
+        {
+            if (finalizerCheckBox.Checked)
             {
-                var process = processes[index];
-
-                TextBox titleTextBox = new TextBox
-                {
-                    Width = 90,
-                    Text = customTitles.ContainsKey(process.Id) ? customTitles[process.Id] : process.MainWindowTitle,
-                    TextAlign = HorizontalAlignment.Center 
-                };
-
-                titleTextBox.TextChanged += (sender, e) =>
-                {
-                    customTitles[process.Id] = titleTextBox.Text;
-                    SaveCustomTitles(); 
-                };
-
-                RoundedTextBox hotkeyTextBox = new RoundedTextBox
-                {
-                    Width = 50,
-                    BorderRadius = 15,
-                    BorderColor = Color.Gray,
-                    BackgroundColor = Color.White,
-                    ReadOnly = true,
-                    Text = processHotkeys.ContainsKey(process.Id) ? processHotkeys[process.Id].ToString() : string.Empty
-                };
-
-                hotkeyTextBox.Click += (sender, e) =>
-                {
-                    hotkeyTextBox.ReadOnly = false;
-                    hotkeyTextBox.BorderColor = Color.Blue;
-                };
-
-                hotkeyTextBox.Leave += (sender, e) =>
-                {
-                    hotkeyTextBox.ReadOnly = true;
-                    hotkeyTextBox.BorderColor = Color.Gray;
-                };
-
-                hotkeyTextBox.KeyDown += (sender, e) =>
-                {
-                    if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu)
-                        return;
-
-                    hotkeyTextBox.Text = e.KeyCode.ToString();
-                    hotkeyMapping[e.KeyCode] = process.Id;
-                    hotkeyTextBox.ReadOnly = true;
-                    SaveHotkeys();
-                    RegisterGlobalHotkeys();
-                };
-
-                hotkeySelectors[process.Id] = hotkeyTextBox;
-
-                PictureBox dragIcon = new PictureBox
-                {
-                    Image = Image.FromFile("Resources/drag_icon.ico"), 
-                    SizeMode = PictureBoxSizeMode.Zoom,
-                    Width = 20,
-                    Height = 20,
-                    Cursor = Cursors.Hand
-                };
-                FlowLayoutPanel row = new FlowLayoutPanel
-                {
-                    Width = 450,
-                    Height = 30,
-                    Tag = process.Id
-                };
-                dragIcon.MouseDown += (sender, e) =>
-                {
-                    processPanel.DoDragDrop(row, DragDropEffects.Move);
-                };
-
-
-
-                row.Controls.Add(dragIcon);
-                row.Controls.Add(titleTextBox);
-                row.Controls.Add(hotkeyTextBox);
-                processPanel.Controls.Add(row);
+                finalizerProcessId = process.Id;
+                SaveFinalizerProcess(); // Salva no arquivo de configuração
+            }
+            else if (finalizerProcessId == process.Id)
+            {
+                finalizerProcessId = -1; // Nenhum processo marcado
+                SaveFinalizerProcess();
             }
 
-        }
+            // Atualiza a interface para garantir que apenas um esteja marcado
+            foreach (var control in processPanel.Controls)
+            {
+                if (control is FlowLayoutPanel row)
+                {
+                    var checkBox = row.Controls.OfType<CheckBox>().FirstOrDefault();
+                    if (checkBox != null && checkBox != finalizerCheckBox)
+                    {
+                        checkBox.Checked = false;
+                    }
+                }
+            }
+        };
 
+        row.Controls.Add(dragIcon);
+        row.Controls.Add(titleTextBox);
+        row.Controls.Add(hotkeyTextBox);
+        row.Controls.Add(finalizerCheckBox);
 
+        processPanel.Controls.Add(row);
+    }
+}
+
+private int finalizerProcessId = -1; // Guarda o ID do processo finalizador
+private const string FinalizerFile = "finalizer.config"; // Arquivo para salvar a escolha
+
+private void SaveFinalizerProcess()
+{
+    File.WriteAllText(FinalizerFile, finalizerProcessId.ToString());
+}
+
+private void LoadFinalizerProcess()
+{
+    if (File.Exists(FinalizerFile) && int.TryParse(File.ReadAllText(FinalizerFile), out int id))
+    {
+        finalizerProcessId = id;
+    }
+}
         private void SaveCustomTitles()
         {
             File.WriteAllLines(TitlesFile, customTitles.Select(kvp => $"{kvp.Key}:{kvp.Value}"));
@@ -280,34 +329,44 @@ namespace ProcessSwitcher
         }
 
         private void SendKeysToAllProcesses()
+{
+    if (processes.Count == 0)
+    {
+        MessageBox.Show("Nenhum processo encontrado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
+
+    // Criar uma lista ordenada até o processo finalizador
+    List<Process> orderedProcesses = new List<Process>();
+    bool foundFinalizer = false;
+
+    foreach (var process in processes)
+    {
+        if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
         {
-            if (processes.Count == 0)
+            orderedProcesses.Add(process);
+            
+            // Se encontramos o finalizador, paramos de adicionar processos
+            if (process.Id == finalizerProcessId)
             {
-                MessageBox.Show("Nenhum processo encontrado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            foreach (var process in processes)
-            {
-                if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
-                {
-
-                    ShowWindow(process.MainWindowHandle, SW_RESTORE);
-
-
-                    SwitchToProcess(process);
-
-
-                    System.Threading.Thread.Sleep(100);
-
-
-                    SendKeysToProcess();
-
-
-                    System.Threading.Thread.Sleep(200);
-                }
+                foundFinalizer = true;
+                break;
             }
         }
+    }
+
+    // Agora, enviamos as teclas para todos os processos na lista ordenada
+    foreach (var process in orderedProcesses)
+    {
+        ShowWindow(process.MainWindowHandle, SW_RESTORE);
+        SwitchToProcess(process);
+        System.Threading.Thread.Sleep(100);
+
+        SendKeysToProcess();
+        System.Threading.Thread.Sleep(200);
+    }
+}
+
 
         private void SendKeysToProcess()
         {
@@ -368,7 +427,7 @@ namespace ProcessSwitcher
 
             processes = reorderedList;
 
-            
+
             foreach (var kvp in hotkeyMapping)
             {
                 if (processes.Any(p => p.Id == kvp.Value))
@@ -381,7 +440,6 @@ namespace ProcessSwitcher
             SaveHotkeys();
             RegisterGlobalHotkeys();
         }
-
 
 
 
