@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ProcessSwitcher")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+48e34e84981301c67f67a84a1d50b335fe3e8543")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9d948ae648f4e798da6a4be4e318fb0b4957f555")]
 [assembly: System.Reflection.AssemblyProductAttribute("ProcessSwitcher")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ProcessSwitcher")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
