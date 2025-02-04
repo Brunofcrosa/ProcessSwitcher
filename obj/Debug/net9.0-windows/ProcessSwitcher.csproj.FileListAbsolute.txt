@@ -74,3 +74,51 @@ C:\Users\Administrator\Desktop\test\ProcessSwitcher\obj\Debug\net9.0-windows\Pro
 C:\Users\Administrator\Desktop\test\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.genruntimeconfig.cache
 C:\Users\Administrator\Desktop\test\ProcessSwitcher\obj\Debug\net9.0-windows\ref\ProcessSwitcher.dll
 C:\Users\Administrator\Desktop\test\ProcessSwitcher\bin\Debug\net9.0-windows\Resources\check.ico
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\bin\Debug\net9.0-windows\Resources\check.ico
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.exe
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.deps.json
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.runtimeconfig.json
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.pdb
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.AssemblyInfoInputs.cache
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.AssemblyInfo.cs
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.csproj.CoreCompileInputs.cache
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.sourcelink.json
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\refint\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.pdb
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.genruntimeconfig.cache
+C:\Users\Administrator\Desktop\github\ProcessSwitcher\obj\Debug\net9.0-windows\ref\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\bin\Debug\net9.0-windows\Resources\check.ico
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.exe
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.deps.json
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.runtimeconfig.json
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.pdb
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.AssemblyInfoInputs.cache
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.AssemblyInfo.cs
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.csproj.CoreCompileInputs.cache
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.sourcelink.json
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\refint\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.pdb
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.genruntimeconfig.cache
+C:\Users\Administrator\Desktop\backup 5\ProcessSwitcher\obj\Debug\net9.0-windows\ref\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\bin\Debug\net9.0-windows\Resources\check.ico
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.exe
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.deps.json
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.runtimeconfig.json
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\bin\Debug\net9.0-windows\ProcessSwitcher.pdb
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.AssemblyInfoInputs.cache
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.AssemblyInfo.cs
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.csproj.CoreCompileInputs.cache
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.sourcelink.json
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\refint\ProcessSwitcher.dll
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.pdb
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ProcessSwitcher.genruntimeconfig.cache
+C:\Users\Administrator\Desktop\backup 6\ProcessSwitcher\obj\Debug\net9.0-windows\ref\ProcessSwitcher.dll

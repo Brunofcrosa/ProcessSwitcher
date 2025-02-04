@@ -29,6 +29,9 @@ namespace ProcessSwitcher
         private Dictionary<Keys, int> hotkeyMapping = new Dictionary<Keys, int>();
         private Dictionary<int, TextBox> hotkeySelectors = new Dictionary<int, TextBox>();
         private Keys sendKeysHotkey = Keys.None;
+        private const string TitlesFile = "titles.config";
+        private Dictionary<int, string> customTitles = new Dictionary<int, string>();
+
 
         public Form1()
         {
@@ -36,6 +39,7 @@ namespace ProcessSwitcher
             LoadHotkeys();
             LoadProcesses();
             RegisterGlobalHotkeys();
+            LoadCustomTitles();
         }
 
         private void LoadProcesses()
@@ -45,55 +49,109 @@ namespace ProcessSwitcher
             hotkeySelectors.Clear();
 
             var processHotkeys = hotkeyMapping
-                .Where(kvp => kvp.Value < processes.Count)
+                .Where(kvp => processes.Any(p => p.Id == kvp.Value))
                 .ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
 
             for (int index = 0; index < processes.Count; index++)
             {
                 var process = processes[index];
 
-                Label processLabel = new Label
+                TextBox titleTextBox = new TextBox
                 {
-                    Text = $"{process.MainWindowTitle} ",
-                    AutoSize = true,
-                    Width = 180
+                    Width = 90,
+                    Text = customTitles.ContainsKey(process.Id) ? customTitles[process.Id] : process.MainWindowTitle,
+                    TextAlign = HorizontalAlignment.Center 
                 };
 
-                TextBox hotkeyTextBox = new TextBox
+                titleTextBox.TextChanged += (sender, e) =>
                 {
-                    Width = 80,
+                    customTitles[process.Id] = titleTextBox.Text;
+                    SaveCustomTitles(); 
+                };
+
+                RoundedTextBox hotkeyTextBox = new RoundedTextBox
+                {
+                    Width = 50,
+                    BorderRadius = 15,
+                    BorderColor = Color.Gray,
+                    BackgroundColor = Color.White,
                     ReadOnly = true,
-                    Text = processHotkeys.ContainsKey(index) ? processHotkeys[index].ToString() : string.Empty
+                    Text = processHotkeys.ContainsKey(process.Id) ? processHotkeys[process.Id].ToString() : string.Empty
                 };
 
-                hotkeyTextBox.Click += (sender, e) => hotkeyTextBox.ReadOnly = false;
+                hotkeyTextBox.Click += (sender, e) =>
+                {
+                    hotkeyTextBox.ReadOnly = false;
+                    hotkeyTextBox.BorderColor = Color.Blue;
+                };
+
+                hotkeyTextBox.Leave += (sender, e) =>
+                {
+                    hotkeyTextBox.ReadOnly = true;
+                    hotkeyTextBox.BorderColor = Color.Gray;
+                };
 
                 hotkeyTextBox.KeyDown += (sender, e) =>
                 {
                     if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu)
                         return;
 
-                    
-                    var existingKey = hotkeyMapping.FirstOrDefault(kvp => kvp.Value == index).Key;
-                    if (existingKey != Keys.None)
-                    {
-                        hotkeyMapping.Remove(existingKey);
-                    }
-
-                    
-                    hotkeyMapping[e.KeyCode] = index;
                     hotkeyTextBox.Text = e.KeyCode.ToString();
+                    hotkeyMapping[e.KeyCode] = process.Id;
+                    hotkeyTextBox.ReadOnly = true;
                     SaveHotkeys();
                     RegisterGlobalHotkeys();
-                    hotkeyTextBox.ReadOnly = true;
                 };
 
-                hotkeySelectors[index] = hotkeyTextBox;
+                hotkeySelectors[process.Id] = hotkeyTextBox;
 
-                FlowLayoutPanel row = new FlowLayoutPanel { Width = 270, Height = 30 };
-                row.Controls.Add(processLabel);
+                PictureBox dragIcon = new PictureBox
+                {
+                    Image = Image.FromFile("Resources/drag_icon.ico"), 
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    Width = 20,
+                    Height = 20,
+                    Cursor = Cursors.Hand
+                };
+                FlowLayoutPanel row = new FlowLayoutPanel
+                {
+                    Width = 450,
+                    Height = 30,
+                    Tag = process.Id
+                };
+                dragIcon.MouseDown += (sender, e) =>
+                {
+                    processPanel.DoDragDrop(row, DragDropEffects.Move);
+                };
+
+
+
+                row.Controls.Add(dragIcon);
+                row.Controls.Add(titleTextBox);
                 row.Controls.Add(hotkeyTextBox);
                 processPanel.Controls.Add(row);
+            }
+
+        }
+
+
+        private void SaveCustomTitles()
+        {
+            File.WriteAllLines(TitlesFile, customTitles.Select(kvp => $"{kvp.Key}:{kvp.Value}"));
+        }
+
+        private void LoadCustomTitles()
+        {
+            if (File.Exists(TitlesFile))
+            {
+                foreach (var line in File.ReadAllLines(TitlesFile))
+                {
+                    var parts = line.Split(':');
+                    if (int.TryParse(parts[0], out int index) && parts.Length > 1)
+                    {
+                        customTitles[index] = parts[1];
+                    }
+                }
             }
         }
 
@@ -101,15 +159,15 @@ namespace ProcessSwitcher
         {
             UnregisterGlobalHotkeys();
 
-            
+
             foreach (var kvp in hotkeyMapping)
             {
-                
-                int id = kvp.Key.GetHashCode() % 1000; 
+
+                int id = kvp.Key.GetHashCode() % 1000;
                 RegisterHotKey(this.Handle, id, 0, (int)kvp.Key);
             }
 
-            
+
             if (sendKeysHotkey != Keys.None)
             {
                 int id = sendKeysHotkey.GetHashCode() % 1000;
@@ -119,7 +177,7 @@ namespace ProcessSwitcher
 
         private void UnregisterGlobalHotkeys()
         {
-            
+
             for (int i = 0; i <= 1000; i++)
             {
                 UnregisterHotKey(this.Handle, i);
@@ -139,18 +197,17 @@ namespace ProcessSwitcher
                 }
                 else
                 {
-                    
-                    var key = hotkeyMapping.FirstOrDefault(kvp => kvp.Key.GetHashCode() % 1000 == id).Key;
-                    if (hotkeyMapping.ContainsKey(key))
+                    if (hotkeyMapping.TryGetValue(hotkeyMapping.FirstOrDefault(kvp => kvp.Key.GetHashCode() % 1000 == id).Key, out int processId))
                     {
-                        int index = hotkeyMapping[key];
-                        if (index >= 0 && index < processes.Count)
+                        var process = processes.FirstOrDefault(p => p.Id == processId);
+                        if (process != null)
                         {
-                            SwitchToProcess(processes[index]);
+                            SwitchToProcess(process);
                         }
                     }
                 }
             }
+
             base.WndProc(ref m);
         }
 
@@ -158,9 +215,9 @@ namespace ProcessSwitcher
         {
             if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
             {
-                
+
                 ShowWindow(process.MainWindowHandle, SW_RESTORE);
-                
+
                 SetForegroundWindow(process.MainWindowHandle);
             }
         }
@@ -177,9 +234,9 @@ namespace ProcessSwitcher
                 foreach (var line in File.ReadAllLines(ConfigFile))
                 {
                     var parts = line.Split(':');
-                    if (Enum.TryParse(parts[0], out Keys key) && int.TryParse(parts[1], out int index))
+                    if (Enum.TryParse(parts[0], out Keys key) && int.TryParse(parts[1], out int processId))
                     {
-                        hotkeyMapping[key] = index;
+                        hotkeyMapping[key] = processId;
                     }
                 }
             }
@@ -223,34 +280,34 @@ namespace ProcessSwitcher
         }
 
         private void SendKeysToAllProcesses()
-{
-    if (processes.Count == 0)
-    {
-        MessageBox.Show("Nenhum processo encontrado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        return;
-    }
-
-    foreach (var process in processes)
-    {
-        if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
         {
-            
-            ShowWindow(process.MainWindowHandle, SW_RESTORE);
+            if (processes.Count == 0)
+            {
+                MessageBox.Show("Nenhum processo encontrado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
-            
-            SwitchToProcess(process);
+            foreach (var process in processes)
+            {
+                if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
+                {
 
-            
-            System.Threading.Thread.Sleep(100);
+                    ShowWindow(process.MainWindowHandle, SW_RESTORE);
 
-            
-            SendKeysToProcess();
 
-            
-            System.Threading.Thread.Sleep(200);
+                    SwitchToProcess(process);
+
+
+                    System.Threading.Thread.Sleep(100);
+
+
+                    SendKeysToProcess();
+
+
+                    System.Threading.Thread.Sleep(200);
+                }
+            }
         }
-    }
-}
 
         private void SendKeysToProcess()
         {
@@ -259,5 +316,74 @@ namespace ProcessSwitcher
                 SendKeys.SendWait($"{{F{i}}}");
             }
         }
+
+        private void ProcessPanel_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data?.GetDataPresent(typeof(FlowLayoutPanel)) == true)
+            {
+                e.Effect = DragDropEffects.Move;
+            }
+        }
+
+        private void ProcessPanel_DragDrop(object sender, DragEventArgs e)
+        {
+            FlowLayoutPanel? draggedRow = e.Data?.GetData(typeof(FlowLayoutPanel)) as FlowLayoutPanel;
+            if (draggedRow == null) return;
+
+            if (draggedRow.Parent == processPanel)
+            {
+                int oldIndex = processPanel.Controls.GetChildIndex(draggedRow);
+
+                int newIndex = (int?)(processPanel.PointToClient(new Point(e.X, e.Y)).Y / draggedRow.Height) ?? 0;
+
+                if (newIndex >= processPanel.Controls.Count)
+                {
+                    newIndex = processPanel.Controls.Count - 1;
+                }
+
+                if (oldIndex != newIndex)
+                {
+                    processPanel.Controls.SetChildIndex(draggedRow, newIndex);
+                    ReorderProcesses();
+                }
+            }
+        }
+
+        private void ReorderProcesses()
+        {
+            List<Process> reorderedList = new List<Process>();
+            Dictionary<Keys, int> newHotkeyMapping = new Dictionary<Keys, int>();
+
+            foreach (FlowLayoutPanel row in processPanel.Controls)
+            {
+                if (row.Tag is int processId)
+                {
+                    var process = processes.FirstOrDefault(p => p.Id == processId);
+                    if (process != null)
+                    {
+                        reorderedList.Add(process);
+                    }
+                }
+            }
+
+            processes = reorderedList;
+
+            
+            foreach (var kvp in hotkeyMapping)
+            {
+                if (processes.Any(p => p.Id == kvp.Value))
+                {
+                    newHotkeyMapping[kvp.Key] = kvp.Value;
+                }
+            }
+
+            hotkeyMapping = newHotkeyMapping;
+            SaveHotkeys();
+            RegisterGlobalHotkeys();
+        }
+
+
+
+
     }
-} 
+}
