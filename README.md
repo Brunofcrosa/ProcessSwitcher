@@ -1,4 +1,4 @@
-## GameS
+## Process Switcher
 
 ## Descrição Geral
 Este projeto é um utilitário para gerenciar multi janelas de um jogo(atualmente perfect world).
