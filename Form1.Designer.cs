@@ -13,6 +13,7 @@ namespace ProcessSwitcher
         private Button btnRefreshProcesses;
         private TextBox txtSendKeysHotkey;
         private Label lblSendKeysHotkey;
+        private Label copyright;
 
         private void InitializeComponent()
         {
@@ -49,6 +50,14 @@ this.btnUpdateHotkeys = CreateButton("", 140, 400, () => btnUpdateHotkeys_Click(
                 AutoSize = true
             };
 
+            this.copyright = new Label
+            {
+                Text = "Brunu",
+                Location = new Point(221, 345),
+                AutoSize = true,
+                BackColor = Color.LightGray,
+            };
+
             
 
             this.txtSendKeysHotkey = new RoundedTextBox
@@ -83,14 +92,15 @@ processPanel.AllowDrop = true;
             processPanel.DragEnter += ProcessPanel_DragEnter;
             processPanel.DragDrop += ProcessPanel_DragDrop;
             this.ClientSize = new Size(270, 470);
+            this.Controls.Add(this.copyright);
             this.Controls.Add(this.processPanel);
             this.Controls.Add(this.btnRefreshProcesses);
             this.Controls.Add(this.btnUpdateHotkeys);
-            
             this.Controls.Add(lblBelowButtons); 
             this.Controls.Add(lblBelowButtons2); 
             this.Controls.Add(this.lblSendKeysHotkey);
             this.Controls.Add(this.txtSendKeysHotkey);
+           
             this.Text = "Process Switcher";
             this.FormClosing += new FormClosingEventHandler(this.Form1_FormClosing);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -223,7 +233,7 @@ processPanel.AllowDrop = true;
                     }
                 }
 
-                // Centraliza o texto dentro do TextBox
+                
                 using (SolidBrush textBrush = new SolidBrush(textColor))
                 {
                     SizeF textSize = g.MeasureString(this.Text, this.Font);

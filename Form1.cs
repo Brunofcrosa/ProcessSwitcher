@@ -158,20 +158,20 @@ namespace ProcessSwitcher
                 {
                     Text = "",
                     AutoSize = true,
-                    Checked = false // Todos os processos começam selecionados
+                    Checked = false 
                 };
 
                 selectedCheckBox.CheckedChanged += (sender, e) =>
                 {
-                    // Atualizar a lista de processos selecionados
+                    
                     if (selectedCheckBox.Checked)
                     {
-                        // Marque o processo como selecionado
+                        
                         selectedProcesses.Add(process.Id);
                     }
                     else
                     {
-                        // Remova o processo da lista de selecionados
+                        
                         selectedProcesses.Remove(process.Id);
                     }
                 };
@@ -186,8 +186,8 @@ namespace ProcessSwitcher
             }
         }
 
-        private int finalizerProcessId = -1; // Guarda o ID do processo finalizador
-        private const string FinalizerFile = "finalizer.config"; // Arquivo para salvar a escolha
+        private int finalizerProcessId = -1; 
+        private const string FinalizerFile = "finalizer.config"; 
         private HashSet<int> selectedProcesses = new HashSet<int>();
 
         private void SendKeysToSelectedProcesses()
@@ -200,7 +200,7 @@ namespace ProcessSwitcher
 
             List<Process> orderedProcesses = new List<Process>();
 
-            // Filtra os processos selecionados
+            
             foreach (var process in processes)
             {
                 if (selectedProcesses.Contains(process.Id) && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
@@ -209,7 +209,7 @@ namespace ProcessSwitcher
                 }
             }
 
-            // Enviar teclas para os processos selecionados
+            
             foreach (var process in orderedProcesses)
             {
                 ShowWindow(process.MainWindowHandle, SW_RESTORE);
@@ -400,19 +400,19 @@ namespace ProcessSwitcher
                 if (selectedProcesses.Contains(process.Id) && process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
                 {
                     if (firstProcess == null)
-                        firstProcess = process; // Guarda o primeiro processo da lista
+                        firstProcess = process; 
 
                     orderedProcesses.Add(process);
 
                     if (process.Id == finalizerProcessId)
                     {
 
-                        break; // Para de adicionar processos ao encontrar o finalizador
+                        break; 
                     }
                 }
             }
 
-            // Enviar teclas para os processos selecionados na lista ordenada
+            
             foreach (var process in orderedProcesses)
             {
                 ShowWindow(process.MainWindowHandle, SW_RESTORE);
@@ -423,7 +423,7 @@ namespace ProcessSwitcher
                 System.Threading.Thread.Sleep(200);
             }
 
-            // Voltar para o primeiro processo e enviar as teclas novamente
+            
             if (firstProcess != null)
             {
                 ShowWindow(firstProcess.MainWindowHandle, SW_RESTORE);
@@ -456,7 +456,7 @@ namespace ProcessSwitcher
                 int oldIndex = processPanel.Controls.GetChildIndex(draggedRow);
 
                 int newIndex = processPanel.PointToClient(new Point(e.X, e.Y)).Y / draggedRow.Height;
-                newIndex = newIndex < 0 ? 0 : newIndex;  // Garantir que o índice não seja negativo.
+                newIndex = newIndex < 0 ? 0 : newIndex;  
 
 
                 if (newIndex >= processPanel.Controls.Count)
