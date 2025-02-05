@@ -1,0 +1,2 @@
+C:\Users\Administrator\Desktop\last test\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\ProcessSwitcher.pdb
+C:\Users\Administrator\Desktop\last test\ProcessSwitcher\bin\Release\net9.0-windows\win-x64\publish\ProcessSwitcher.exe
