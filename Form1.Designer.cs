@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using System.Reflection;
 
 namespace ProcessSwitcher
 {
@@ -25,11 +26,8 @@ namespace ProcessSwitcher
                 Padding = new Padding(5)
             };
 
-            this.btnRefreshProcesses = CreateButton("", 10, 400,
-    () => btnRefreshProcesses_Click(null, null), "Resources/refresh.ico");
-
-            this.btnUpdateHotkeys = CreateButton("", 140, 400,
-                () => btnUpdateHotkeys_Click(null, null), "Resources/check.ico");
+            this.btnRefreshProcesses = CreateButton("", 10, 400, () => btnRefreshProcesses_Click(null, null), "refresh.ico");
+this.btnUpdateHotkeys = CreateButton("", 140, 400, () => btnUpdateHotkeys_Click(null, null), "check.ico");
 
             Label lblBelowButtons = new Label
             {
@@ -75,7 +73,7 @@ namespace ProcessSwitcher
 
             try
             {
-                this.Icon = new Icon("Resources/pwicon.ico");
+                this.Icon = new Icon(Assembly.GetExecutingAssembly().GetManifestResourceStream("ProcessSwitcher.Resources.pwicon.ico"));
             }
             catch (Exception ex)
             {
@@ -100,35 +98,38 @@ processPanel.AllowDrop = true;
             this.StartPosition = FormStartPosition.CenterScreen;
         }
 
-        private Button CreateButton(string text, int x, int y, Action clickHandler, string iconPath = null)
+        private Button CreateButton(string text, int x, int y, Action clickHandler, string iconName = null)
+{
+    var button = new RoundedButton
+    {
+        Location = new Point(x, y),
+        Size = new Size(120, 50),
+        Text = text,
+        BackColor = Color.White,
+        ForeColor = Color.Black,
+        FlatStyle = FlatStyle.Flat,
+        TextAlign = ContentAlignment.BottomCenter,
+        ImageAlign = ContentAlignment.MiddleCenter,
+        TextImageRelation = TextImageRelation.ImageAboveText,
+        Padding = new Padding(5)
+    };
+
+    if (!string.IsNullOrEmpty(iconName))
+    {
+        Image originalImage = LoadEmbeddedImage(iconName);
+        if (originalImage != null)
         {
-            var button = new RoundedButton
-            {
-                Location = new Point(x, y),
-                Size = new Size(120, 50), 
-                Text = text,
-                BackColor = Color.White,
-                ForeColor = Color.Black,
-                FlatStyle = FlatStyle.Flat,
-                TextAlign = ContentAlignment.BottomCenter,
-                ImageAlign = ContentAlignment.TopCenter,
-                TextImageRelation = TextImageRelation.ImageAboveText,
-                Padding = new Padding(5) 
-            };
-
-            if (!string.IsNullOrEmpty(iconPath) && System.IO.File.Exists(iconPath))
-            {
-                Image originalImage = Image.FromFile(iconPath);
-                Image resizedImage = new Bitmap(originalImage, new Size(35, 35));
-                button.Image = resizedImage;
-            }
-
-            button.MouseEnter += (sender, e) => button.BackColor = Color.LightGray;
-            button.MouseLeave += (sender, e) => button.BackColor = Color.White;
-            button.Click += (sender, e) => clickHandler?.Invoke();
-
-            return button;
+            Image resizedImage = new Bitmap(originalImage, new Size(35, 35));
+            button.Image = resizedImage;
         }
+    }
+
+    button.MouseEnter += (sender, e) => button.BackColor = Color.LightGray;
+    button.MouseLeave += (sender, e) => button.BackColor = Color.White;
+    button.Click += (sender, e) => clickHandler?.Invoke();
+
+    return button;
+}
 
         class RoundedButton : Button
         {

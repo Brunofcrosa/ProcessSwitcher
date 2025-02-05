@@ -10,12 +10,13 @@
     
   </PropertyGroup>
   <ItemGroup>
-    <None Update="Resources\check.ico" CopyToPublishDirectory="PreserveNewest"/>
-    <None Update="Resources\drag_icon.ico" CopyToPublishDirectory="PreserveNewest"/>
-    <None Update="Resources\list.ico" CopyToPublishDirectory="PreserveNewest"/>
-    <None Update="Resources\refresh.ico" CopyToPublishDirectory="PreserveNewest"/>
-    <None Update="Resources\trash.png" CopyToPublishDirectory="PreserveNewest"/>
-    <None Update="Resources\pwicon.ico" CopyToPublishDirectory="PreserveNewest"/>
+    <EmbeddedResource Include="Resources\check.ico"/>
+    <EmbeddedResource Include="Resources\drag_icon.ico"/>
+    <EmbeddedResource Include="Resources\list.ico"/>
+    <EmbeddedResource Include="Resources\refresh.ico"/>
+    <EmbeddedResource Include="Resources\trash.png"/>
+    <EmbeddedResource Include="Resources\pwicon.ico"/>
 </ItemGroup>
+
 
 </Project>
