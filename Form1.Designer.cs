@@ -8,6 +8,8 @@ namespace ProcessSwitcher
 {
     partial class Form1 : Form
     {
+        // Declarações de TODOS os controles UI.
+        // Nenhuma dessas variáveis deve ser declarada novamente em Form1.cs.
         private FlowLayoutPanel processPanel;
         private Button btnUpdateHotkeys;
         private Button btnRefreshProcesses;
@@ -15,11 +17,17 @@ namespace ProcessSwitcher
         private Label lblSendKeysHotkey;
         private Label copyright;
 
+        private ListBox comboListBox;
+        private Button btnMoveUp;
+        private Button btnMoveDown;
+        private Label lblComboProcesses;
+        private CheckBox chkSwitchWindow; // Declaração da nova CheckBox
+
         private void InitializeComponent()
         {
+            // Inicialização dos componentes existentes
             this.processPanel = new FlowLayoutPanel
             {
-
                 FlowDirection = FlowDirection.TopDown,
                 Location = new Point(10, 10),
                 Size = new Size(250, 350),
@@ -27,8 +35,9 @@ namespace ProcessSwitcher
                 Padding = new Padding(5)
             };
 
+            // Criar botões usando o método auxiliar e linkar eventos
             this.btnRefreshProcesses = CreateButton("", 10, 400, () => btnRefreshProcesses_Click(null, null), "refresh.ico");
-this.btnUpdateHotkeys = CreateButton("", 140, 400, () => btnUpdateHotkeys_Click(null, null), "check.ico");
+            this.btnUpdateHotkeys = CreateButton("", 140, 400, () => btnUpdateHotkeys_Click(null, null), "check.ico");
 
             Label lblBelowButtons = new Label
             {
@@ -58,8 +67,6 @@ this.btnUpdateHotkeys = CreateButton("", 140, 400, () => btnUpdateHotkeys_Click(
                 BackColor = Color.LightGray,
             };
 
-            
-
             this.txtSendKeysHotkey = new RoundedTextBox
             {
                 Location = new Point(160, 370),
@@ -68,9 +75,8 @@ this.btnUpdateHotkeys = CreateButton("", 140, 400, () => btnUpdateHotkeys_Click(
                 TextAlign = HorizontalAlignment.Center,
                 Cursor = Cursors.Hand,
                 BorderRadius = 15,
-                BorderColor = Color.Black 
+                BorderColor = Color.Black // Correção: Atribuindo valor
             };
-
 
             this.txtSendKeysHotkey.KeyDown += (sender, e) =>
             {
@@ -88,10 +94,43 @@ this.btnUpdateHotkeys = CreateButton("", 140, 400, () => btnUpdateHotkeys_Click(
             {
                 MessageBox.Show("Erro ao carregar o ícone: " + ex.Message, "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-processPanel.AllowDrop = true;
+            processPanel.AllowDrop = true;
             processPanel.DragEnter += ProcessPanel_DragEnter;
             processPanel.DragDrop += ProcessPanel_DragDrop;
-            this.ClientSize = new Size(270, 470);
+            
+            // Inicialização dos componentes do combo
+            this.lblComboProcesses = new Label
+            {
+                Text = "Processos no Combo (ordem de execução):",
+                Location = new Point(270, 10),
+                AutoSize = true
+            };
+
+            this.comboListBox = new ListBox
+            {
+                Location = new Point(270, 30),
+                Size = new Size(180, 200),
+                SelectionMode = SelectionMode.One
+            };
+
+            this.btnMoveUp = CreateButton("Mover Acima", 270, 240, MoveComboProcessUp);
+            this.btnMoveUp.Size = new Size(85, 30);
+
+            this.btnMoveDown = CreateButton("Mover Abaixo", 365, 240, MoveComboProcessDown);
+            this.btnMoveDown.Size = new Size(85, 30);
+
+            // Nova CheckBox para controlar a troca de janela
+            this.chkSwitchWindow = new CheckBox
+            {
+                Text = "Trocar para a janela ao Combar",
+                Location = new Point(270, 280), // Ajuste a posição conforme necessário
+                AutoSize = true,
+                Checked = true // Valor padrão
+            };
+            this.chkSwitchWindow.CheckedChanged += new EventHandler(this.chkSwitchWindow_CheckedChanged);
+
+
+            // Adiciona todos os controles ao formulário
             this.Controls.Add(this.copyright);
             this.Controls.Add(this.processPanel);
             this.Controls.Add(this.btnRefreshProcesses);
@@ -100,46 +139,57 @@ processPanel.AllowDrop = true;
             this.Controls.Add(lblBelowButtons2); 
             this.Controls.Add(this.lblSendKeysHotkey);
             this.Controls.Add(this.txtSendKeysHotkey);
+            this.Controls.Add(this.lblComboProcesses);
+            this.Controls.Add(this.comboListBox);
+            this.Controls.Add(this.btnMoveUp);
+            this.Controls.Add(this.btnMoveDown);
+            this.Controls.Add(this.chkSwitchWindow); // Adiciona a nova CheckBox
            
+            this.ClientSize = new Size(470, 470); 
             this.Text = "Process Switcher";
             this.FormClosing += new FormClosingEventHandler(this.Form1_FormClosing);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
-            this.StartPosition = FormStartPosition.CenterScreen;
+            this.StartPosition = FormStartPosition.CenterScreen; 
         }
+
+        // Importante: Métodos como CreateButton, RoundedButton e RoundedTextBox
+        // devem permanecer aqui, pois são classes aninhadas ou auxiliares
+        // que são parte do design do formulário.
 
         private Button CreateButton(string text, int x, int y, Action clickHandler, string iconName = null)
-{
-    var button = new RoundedButton
-    {
-        Location = new Point(x, y),
-        Size = new Size(120, 50),
-        Text = text,
-        BackColor = Color.White,
-        ForeColor = Color.Black,
-        FlatStyle = FlatStyle.Flat,
-        TextAlign = ContentAlignment.BottomCenter,
-        ImageAlign = ContentAlignment.MiddleCenter,
-        TextImageRelation = TextImageRelation.ImageAboveText,
-        Padding = new Padding(5)
-    };
-
-    if (!string.IsNullOrEmpty(iconName))
-    {
-        Image originalImage = LoadEmbeddedImage(iconName);
-        if (originalImage != null)
         {
-            Image resizedImage = new Bitmap(originalImage, new Size(35, 35));
-            button.Image = resizedImage;
+            var button = new RoundedButton
+            {
+                Location = new Point(x, y),
+                Size = new Size(120, 50),
+                Text = text,
+                BackColor = Color.White,
+                ForeColor = Color.Black,
+                FlatStyle = FlatStyle.Flat,
+                TextAlign = ContentAlignment.BottomCenter,
+                ImageAlign = ContentAlignment.MiddleCenter,
+                TextImageRelation = TextImageRelation.ImageAboveText,
+                Padding = new Padding(5)
+            };
+
+            if (!string.IsNullOrEmpty(iconName))
+            {
+                // Note: LoadEmbeddedImage é um método em Form1.cs, mas é acessível aqui por ser partial
+                Image originalImage = LoadEmbeddedImage(iconName);
+                if (originalImage != null)
+                {
+                    Image resizedImage = new Bitmap(originalImage, new Size(35, 35));
+                    button.Image = resizedImage;
+                }
+            }
+
+            button.MouseEnter += (sender, e) => button.BackColor = Color.LightGray;
+            button.MouseLeave += (sender, e) => button.BackColor = Color.White;
+            button.Click += (sender, e) => clickHandler?.Invoke();
+
+            return button;
         }
-    }
-
-    button.MouseEnter += (sender, e) => button.BackColor = Color.LightGray;
-    button.MouseLeave += (sender, e) => button.BackColor = Color.White;
-    button.Click += (sender, e) => clickHandler?.Invoke();
-
-    return button;
-}
 
         class RoundedButton : Button
         {
@@ -179,10 +229,11 @@ processPanel.AllowDrop = true;
                 set { borderRadius = value; this.Invalidate(); }
             }
 
+            // Correção: Adicionado 'set' público para permitir atribuição
             public Color BorderColor
             {
                 get { return borderColor; }
-                set { borderColor = value; this.Invalidate(); }
+                set { borderColor = value; this.Invalidate(); } 
             }
 
             public Color BackgroundColor
@@ -263,12 +314,5 @@ processPanel.AllowDrop = true;
                 this.Invalidate(); 
             }
         }
-
-
-
-
-
-
-
     }
 }

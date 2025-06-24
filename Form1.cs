@@ -6,14 +6,16 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Reflection;
-using System.IO;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Threading.Tasks;
+using System.Threading; // Necessário para CancellationTokenSource
 
 namespace ProcessSwitcher
 {
     public partial class Form1 : Form
     {
         private const int SW_RESTORE = 9;
-        private const string ConfigFile = "hotkeys.config";
 
         [DllImport("user32.dll")]
         public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -27,41 +29,149 @@ namespace ProcessSwitcher
         [DllImport("user32.dll")]
         public static extern int UnregisterHotKey(IntPtr hWnd, int id);
 
+        // DllImports e estruturas para SendInput
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        [DllImport("user32.dll")]
+        private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+        // DllImports para controle de foco avançado
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll")]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        // Constantes para SendInput
+        private const int INPUT_KEYBOARD = 1;
+        private const int KEYEVENTF_EXTENDEDKEY = 0x0001;
+        private const int KEYEVENTF_KEYUP = 0x0002;
+        private const int KEYEVENTF_UNICODE = 0x0004;
+        private const int KEYEVENTF_SCANCODE = 0x0008;
+
+        // Códigos de teclas virtuais para F1-F8
+        private static readonly Dictionary<Keys, ushort> VKeyCodes = new Dictionary<Keys, ushort>
+        {
+            { Keys.F1, 0x70 }, // VK_F1
+            { Keys.F2, 0x71 }, // VK_F2
+            { Keys.F3, 0x72 }, // VK_F3
+            { Keys.F4, 0x73 }, // VK_F4
+            { Keys.F5, 0x74 }, // VK_F5
+            { Keys.F6, 0x75 }, // VK_F6
+            { Keys.F7, 0x76 }, // VK_F7
+            { Keys.F8, 0x77 }  // VK_F8
+        };
+
+        // Estruturas para SendInput
+        [StructLayout(LayoutKind.Sequential)]
+        public struct INPUT
+        {
+            public int type;
+            public InputUnion U;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        public struct InputUnion
+        {
+            [FieldOffset(0)]
+            public KEYBDINPUT ki;
+            [FieldOffset(0)]
+            public MOUSEINPUT mi;
+            [FieldOffset(0)]
+            public HARDWAREINPUT hi;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct HARDWAREINPUT
+        {
+            public uint uMsg;
+            public ushort wParamL;
+            public ushort wParamH;
+        }
+
         private List<Process> processes = new List<Process>();
-        private Dictionary<Keys, int> hotkeyMapping = new Dictionary<Keys, int>();
+        
+        private Dictionary<Keys, int> processHotkeyMapping = new Dictionary<Keys, int>();
+        private Dictionary<int, Keys> registeredHotkeys = new Dictionary<int, Keys>();
+        
         private Dictionary<int, TextBox> hotkeySelectors = new Dictionary<int, TextBox>();
         private Keys sendKeysHotkey = Keys.None;
+        private int sendKeysHotkeyId = -1;
+        private int nextHotkeyId = 1000;
+        
         private const string TitlesFile = "titles.config";
         private Dictionary<int, string> customTitles = new Dictionary<int, string>();
         private HashSet<int> hiddenProcesses = new HashSet<int>();
+        private int finalizerProcessId = -1;
+        private const string FinalizerFile = "finalizer.config";
 
+        private List<int> comboProcessOrder = new List<int>();
+        private const string ComboFile = "combo.config";
 
+        private bool shouldSwitchWindowForCombo = true;
+        private const string SettingsFile = "settings.config";
+
+        private DateTime lastComboExecutionTime = DateTime.MinValue;
+        private readonly TimeSpan comboDebounceInterval = TimeSpan.FromMilliseconds(500);
+        private CancellationTokenSource? comboCancellationTokenSource;
 
         public Form1()
         {
             InitializeComponent();
             LoadHotkeys();
+            LoadCustomTitles();
+            LoadFinalizerProcess();
+            LoadComboProcesses();
+            LoadSettings();
+
             LoadProcesses();
             RegisterGlobalHotkeys();
-            LoadCustomTitles();
+            UpdateComboListBox();
+            UpdateSettingsUI();
         }
 
         private void LoadProcesses()
         {
-            processes = Process.GetProcessesByName("elementclient_64").ToList();
+            processes = Process.GetProcessesByName("elementClient").ToList();
             processPanel.Controls.Clear();
             hotkeySelectors.Clear();
 
-            var processHotkeys = hotkeyMapping
+            var currentProcessHotkeys = processHotkeyMapping
                 .Where(kvp => processes.Any(p => p.Id == kvp.Value))
                 .ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
 
             for (int index = 0; index < processes.Count; index++)
             {
                 var process = processes[index];
-
-
-
+                
                 TextBox titleTextBox = new TextBox
                 {
                     Width = 90,
@@ -73,28 +183,29 @@ namespace ProcessSwitcher
                 {
                     customTitles[process.Id] = titleTextBox.Text;
                     SaveCustomTitles();
+                    UpdateComboListBox();
                 };
 
                 RoundedTextBox hotkeyTextBox = new RoundedTextBox
                 {
                     Width = 50,
                     BorderRadius = 15,
-                    BorderColor = Color.Gray,
+                    BorderColor = Color.Gray, // Correção: Atribuindo valor
                     BackgroundColor = Color.White,
                     ReadOnly = true,
-                    Text = processHotkeys.ContainsKey(process.Id) ? processHotkeys[process.Id].ToString() : string.Empty
+                    Text = currentProcessHotkeys.ContainsKey(process.Id) ? currentProcessHotkeys[process.Id].ToString() : string.Empty
                 };
 
                 hotkeyTextBox.Click += (sender, e) =>
                 {
                     hotkeyTextBox.ReadOnly = false;
-                    hotkeyTextBox.BorderColor = Color.Blue;
+                    hotkeyTextBox.BorderColor = Color.Blue; // Correção: Atribuindo valor
                 };
 
                 hotkeyTextBox.Leave += (sender, e) =>
                 {
                     hotkeyTextBox.ReadOnly = true;
-                    hotkeyTextBox.BorderColor = Color.Gray;
+                    hotkeyTextBox.BorderColor = Color.Gray; // Correção: Atribuindo valor
                 };
 
                 hotkeyTextBox.KeyDown += (sender, e) =>
@@ -102,11 +213,25 @@ namespace ProcessSwitcher
                     if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu)
                         return;
 
+                    if (hotkeySelectors.ContainsValue(hotkeyTextBox))
+                    {
+                        var existingEntry = processHotkeyMapping.FirstOrDefault(x => x.Value == process.Id);
+                        if (existingEntry.Key != Keys.None)
+                        {
+                            processHotkeyMapping.Remove(existingEntry.Key);
+                        }
+                    }
+                    if (processHotkeyMapping.ContainsKey(e.KeyCode))
+                    {
+                        processHotkeyMapping.Remove(e.KeyCode);
+                    }
+                    
                     hotkeyTextBox.Text = e.KeyCode.ToString();
-                    hotkeyMapping[e.KeyCode] = process.Id;
+                    processHotkeyMapping[e.KeyCode] = process.Id;
                     hotkeyTextBox.ReadOnly = true;
                     SaveHotkeys();
                     RegisterGlobalHotkeys();
+                    e.SuppressKeyPress = true;
                 };
 
                 hotkeySelectors[process.Id] = hotkeyTextBox;
@@ -120,7 +245,6 @@ namespace ProcessSwitcher
                     Cursor = Cursors.Hand
                 };
 
-
                 FlowLayoutPanel row = new FlowLayoutPanel
                 {
                     Width = 450,
@@ -131,7 +255,15 @@ namespace ProcessSwitcher
                 trashIcon.Click += (sender, e) =>
                 {
                     hiddenProcesses.Add(process.Id);
+                    var hotkeyToRemove = processHotkeyMapping.FirstOrDefault(kvp => kvp.Value == process.Id);
+                    if (hotkeyToRemove.Key != Keys.None)
+                    {
+                        processHotkeyMapping.Remove(hotkeyToRemove.Key);
+                        SaveHotkeys();
+                        RegisterGlobalHotkeys();
+                    }
                     processPanel.Controls.Remove(row);
+                    UpdateComboListBox();
                 };
 
                 PictureBox dragIcon = new PictureBox
@@ -143,37 +275,28 @@ namespace ProcessSwitcher
                     Cursor = Cursors.Hand
                 };
 
-
-                row.Controls.Add(titleTextBox);
-                row.Controls.Add(hotkeyTextBox);
-
-
-                processPanel.Controls.Add(row);
-                dragIcon.MouseDown += (sender, e) =>
-                {
-                    processPanel.DoDragDrop(row, DragDropEffects.Move);
-                };
-
                 CheckBox selectedCheckBox = new CheckBox
                 {
                     Text = "",
                     AutoSize = true,
-                    Checked = false 
+                    Checked = comboProcessOrder.Contains(process.Id)
                 };
 
                 selectedCheckBox.CheckedChanged += (sender, e) =>
                 {
-                    
                     if (selectedCheckBox.Checked)
                     {
-                        
-                        selectedProcesses.Add(process.Id);
+                        if (!comboProcessOrder.Contains(process.Id))
+                        {
+                            comboProcessOrder.Add(process.Id);
+                        }
                     }
                     else
                     {
-                        
-                        selectedProcesses.Remove(process.Id);
+                        comboProcessOrder.Remove(process.Id);
                     }
+                    SaveComboProcesses();
+                    UpdateComboListBox();
                 };
 
                 row.Controls.Add(dragIcon);
@@ -186,48 +309,175 @@ namespace ProcessSwitcher
             }
         }
 
-        private int finalizerProcessId = -1; 
-        private const string FinalizerFile = "finalizer.config"; 
-        private HashSet<int> selectedProcesses = new HashSet<int>();
-
-        private void SendKeysToSelectedProcesses()
+        private async Task SendKeysToSelectedProcesses(CancellationToken cancellationToken)
         {
-            if (selectedProcesses.Count == 0)
+            if (comboProcessOrder.Count == 0)
             {
-                MessageBox.Show("Nenhum processo selecionado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Nenhum processo selecionado para o combo.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            List<Process> orderedProcesses = new List<Process>();
+            var currentProcessesSnapshot = Process.GetProcessesByName("elementClient").ToList();
 
-            
-            foreach (var process in processes)
+            List<Process> orderedComboProcesses = new List<Process>();
+
+            foreach (var processId in comboProcessOrder)
             {
-                if (selectedProcesses.Contains(process.Id) && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
+                var process = currentProcessesSnapshot.FirstOrDefault(p => p.Id == processId);
+                if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
                 {
-                    orderedProcesses.Add(process);
+                    orderedComboProcesses.Add(process);
+                }
+                else
+                {
+                    Debug.WriteLine($"Processo com ID {processId} não encontrado, encerrado ou sem janela principal. Pulando no combo.");
                 }
             }
 
-            
-            foreach (var process in orderedProcesses)
+            if (!orderedComboProcesses.Any())
             {
-                ShowWindow(process.MainWindowHandle, SW_RESTORE);
-                SwitchToProcess(process);
-                System.Threading.Thread.Sleep(100);
+                MessageBox.Show("Nenhum processo ativo e válido encontrado para o combo.", "Informação", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
-                SendKeysToProcess();
-                System.Threading.Thread.Sleep(200);
+            Process? firstProcessInCombo = orderedComboProcesses.FirstOrDefault();
+            uint currentThreadId = GetCurrentThreadId();
+
+            foreach (var process in orderedComboProcesses)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    Debug.WriteLine("Combo cancelado antes de terminar a iteração.");
+                    return;
+                }
+
+                if (process == null || process.HasExited || process.MainWindowHandle == IntPtr.Zero)
+                {
+                    Debug.WriteLine($"Processo {process?.Id} - {process?.ProcessName} tornou-se inválido durante o combo. Pulando.");
+                    continue;
+                }
+
+                try
+                {
+                    if (shouldSwitchWindowForCombo)
+                    {
+                        uint targetThreadId = GetWindowThreadProcessId(process.MainWindowHandle, out _);
+
+                        if (currentThreadId != targetThreadId)
+                        {
+                            AttachThreadInput(currentThreadId, targetThreadId, true);
+                        }
+                        
+                        ShowWindow(process.MainWindowHandle, SW_RESTORE); 
+                        SetForegroundWindow(process.MainWindowHandle);
+
+                        await Task.Delay(300, cancellationToken);
+                        
+                        if (currentThreadId != targetThreadId)
+                        {
+                            AttachThreadInput(currentThreadId, targetThreadId, false);
+                        }
+                    }
+                    else
+                    {
+                        await Task.Delay(100, cancellationToken); 
+                    }
+
+                    SendKeysToProcess(); 
+                    
+                    await Task.Delay(150, cancellationToken); 
+                }
+                catch (OperationCanceledException)
+                {
+                    Debug.WriteLine("Combo cancelado durante a interação com o processo.");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Erro ao interagir com o processo {process.Id} - {process.ProcessName}: {ex.Message}");
+                }
+            }
+            
+            Process? targetProcessAfterCombo = null;
+            if (finalizerProcessId != -1)
+            {
+                targetProcessAfterCombo = currentProcessesSnapshot.FirstOrDefault(p => p.Id == finalizerProcessId);
+            }
+            else if (firstProcessInCombo != null)
+            {
+                targetProcessAfterCombo = firstProcessInCombo;
+            }
+
+            if (targetProcessAfterCombo != null && !targetProcessAfterCombo.HasExited && targetProcessAfterCombo.MainWindowHandle != IntPtr.Zero)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    Debug.WriteLine("Combo cancelado antes de retornar ao finalizador/primeiro processo.");
+                    return;
+                }
+
+                try
+                {
+                    if (shouldSwitchWindowForCombo)
+                    {
+                        uint targetThreadId = GetWindowThreadProcessId(targetProcessAfterCombo.MainWindowHandle, out _);
+                        if (currentThreadId != targetThreadId)
+                        {
+                            AttachThreadInput(currentThreadId, targetThreadId, true);
+                        }
+
+                        ShowWindow(targetProcessAfterCombo.MainWindowHandle, SW_RESTORE);
+                        SetForegroundWindow(targetProcessAfterCombo.MainWindowHandle);
+                        await Task.Delay(300, cancellationToken);
+
+                        if (currentThreadId != targetThreadId)
+                        {
+                            AttachThreadInput(currentThreadId, targetThreadId, false);
+                        }
+                    }
+                    else
+                    {
+                        await Task.Delay(100, cancellationToken);
+                    }
+                    SendKeysToProcess();
+                }
+                catch (OperationCanceledException)
+                {
+                    Debug.WriteLine("Combo cancelado durante a interação com o finalizador/primeiro processo.");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Erro ao interagir com o processo finalizador/primeiro processo ({targetProcessAfterCombo.Id}): {ex.Message}");
+                }
             }
         }
 
         private void SendKeysToProcess()
         {
-            for (int i = 1; i <= 8; i++)
+            foreach (var kvp in VKeyCodes)
             {
-                SendKeys.SendWait($"{{F{i}}}");
+                ushort virtualKey = kvp.Value;
+                // Pressionar a tecla
+                INPUT[] inputsPress = new INPUT[1];
+                inputsPress[0].type = INPUT_KEYBOARD;
+                inputsPress[0].U.ki.wVk = virtualKey;
+                inputsPress[0].U.ki.dwFlags = 0; // 0 para key press
+                SendInput(1, inputsPress, Marshal.SizeOf(typeof(INPUT)));
+
+                System.Threading.Thread.Sleep(50); // Pequeno atraso entre pressionar e soltar
+
+                // Soltar a tecla
+                INPUT[] inputsRelease = new INPUT[1];
+                inputsRelease[0].type = INPUT_KEYBOARD;
+                inputsRelease[0].U.ki.wVk = virtualKey;
+                inputsRelease[0].U.ki.dwFlags = KEYEVENTF_KEYUP; // KEYEVENTF_KEYUP para key release
+                SendInput(1, inputsRelease, Marshal.SizeOf(typeof(INPUT)));
+
+                System.Threading.Thread.Sleep(50); // Pequeno atraso entre as teclas F1-F8
             }
         }
+
         private void SaveFinalizerProcess()
         {
             File.WriteAllText(FinalizerFile, finalizerProcessId.ToString());
@@ -240,6 +490,7 @@ namespace ProcessSwitcher
                 finalizerProcessId = id;
             }
         }
+
         private void SaveCustomTitles()
         {
             File.WriteAllLines(TitlesFile, customTitles.Select(kvp => $"{kvp.Key}:{kvp.Value}"));
@@ -252,11 +503,79 @@ namespace ProcessSwitcher
                 foreach (var line in File.ReadAllLines(TitlesFile))
                 {
                     var parts = line.Split(':');
-                    if (int.TryParse(parts[0], out int index) && parts.Length > 1)
+                    if (int.TryParse(parts[0], out int id) && parts.Length > 1)
                     {
-                        customTitles[index] = parts[1];
+                        customTitles[id] = parts[1];
                     }
                 }
+            }
+        }
+
+        private void SaveComboProcesses()
+        {
+            File.WriteAllLines(ComboFile, comboProcessOrder.Select(id => id.ToString()));
+        }
+
+        private void LoadComboProcesses()
+        {
+            comboProcessOrder.Clear();
+            if (File.Exists(ComboFile))
+            {
+                foreach (var line in File.ReadAllLines(ComboFile))
+                {
+                    if (int.TryParse(line, out int processId))
+                    {
+                        comboProcessOrder.Add(processId);
+                    }
+                }
+            }
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                File.WriteAllText(SettingsFile, shouldSwitchWindowForCombo.ToString());
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao salvar configurações: {ex.Message}", "Erro de Configuração", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void LoadSettings()
+        {
+            if (File.Exists(SettingsFile))
+            {
+                try
+                {
+                    string settingValue = File.ReadAllText(SettingsFile);
+                    if (bool.TryParse(settingValue, out bool loadedValue))
+                    {
+                        shouldSwitchWindowForCombo = loadedValue;
+                    }
+                    else
+                    {
+                        shouldSwitchWindowForCombo = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Erro ao carregar configurações: {ex.Message}. Usando padrão.", "Erro de Configuração", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    shouldSwitchWindowForCombo = true;
+                }
+            }
+            else
+            {
+                shouldSwitchWindowForCombo = true;
+            }
+        }
+
+        private void UpdateSettingsUI()
+        {
+            if (chkSwitchWindow != null)
+            {
+                chkSwitchWindow.Checked = shouldSwitchWindowForCombo;
             }
         }
 
@@ -264,29 +583,50 @@ namespace ProcessSwitcher
         {
             UnregisterGlobalHotkeys();
 
+            registeredHotkeys.Clear();
+            nextHotkeyId = 1000;
 
-            foreach (var kvp in hotkeyMapping)
+            foreach (var kvp in processHotkeyMapping)
             {
+                if (!processes.Any(p => p.Id == kvp.Value))
+                {
+                    continue;
+                }
 
-                int id = kvp.Key.GetHashCode() % 1000;
-                RegisterHotKey(this.Handle, id, 0, (int)kvp.Key);
+                int id = nextHotkeyId++;
+                if (RegisterHotKey(this.Handle, id, 0, (int)kvp.Key) == 0)
+                {
+                    Debug.WriteLine($"Falha ao registrar hotkey: {kvp.Key} para o ProcessId: {kvp.Value}. ID: {id}");
+                    MessageBox.Show($"Falha ao registrar hotkey para {kvp.Key}. Pode estar em uso por outro programa.", "Erro de Hotkey", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                else
+                {
+                    registeredHotkeys[id] = kvp.Key;
+                }
             }
-
 
             if (sendKeysHotkey != Keys.None)
             {
-                int id = sendKeysHotkey.GetHashCode() % 1000;
-                RegisterHotKey(this.Handle, id, 0, (int)sendKeysHotkey);
+                sendKeysHotkeyId = nextHotkeyId++;
+                if (RegisterHotKey(this.Handle, sendKeysHotkeyId, 0, (int)sendKeysHotkey) == 0)
+                {
+                    Debug.WriteLine($"Falha ao registrar hotkey de combo: {sendKeysHotkey}. ID: {sendKeysHotkeyId}");
+                    MessageBox.Show($"Falha ao registrar hotkey de combo para {sendKeysHotkey}. Pode estar em uso por outro programa.", "Erro de Hotkey de Combo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
         }
 
         private void UnregisterGlobalHotkeys()
         {
-
-            for (int i = 0; i <= 1000; i++)
+            foreach (var id in registeredHotkeys.Keys)
             {
-                UnregisterHotKey(this.Handle, i);
+                UnregisterHotKey(this.Handle, id);
             }
+            if (sendKeysHotkeyId != -1)
+            {
+                UnregisterHotKey(this.Handle, sendKeysHotkeyId);
+            }
+            registeredHotkeys.Clear();
         }
 
         protected override void WndProc(ref Message m)
@@ -294,15 +634,31 @@ namespace ProcessSwitcher
             const int WM_HOTKEY = 0x0312;
             if (m.Msg == WM_HOTKEY)
             {
-                int id = m.WParam.ToInt32();
+                int hotkeyId = m.WParam.ToInt32();
 
-                if (id == sendKeysHotkey.GetHashCode() % 1000)
+                if (hotkeyId == sendKeysHotkeyId)
                 {
-                    SendKeysToAllProcesses();
+                    // Implementação de Debouncing:
+                    // Verifica se o tempo desde a última execução do combo é maior que o intervalo de debounce
+                    if ((DateTime.Now - lastComboExecutionTime) < comboDebounceInterval)
+                    {
+                        Debug.WriteLine("Combo hotkey acionado muito rapidamente. Ignorando.");
+                        return; // Ignora o acionamento se for muito rápido
+                    }
+
+                    // Cancela qualquer execução de combo anterior que ainda esteja em andamento
+                    comboCancellationTokenSource?.Cancel();
+                    comboCancellationTokenSource = new CancellationTokenSource();
+                    CancellationToken cancellationToken = comboCancellationTokenSource.Token;
+
+                    lastComboExecutionTime = DateTime.Now; // Atualiza o tempo da última execução
+
+                    // Executa o combo em uma nova Task
+                    Task.Run(async () => await SendKeysToSelectedProcesses(cancellationToken), cancellationToken);
                 }
-                else
+                else if (registeredHotkeys.TryGetValue(hotkeyId, out Keys hotkey))
                 {
-                    if (hotkeyMapping.TryGetValue(hotkeyMapping.FirstOrDefault(kvp => kvp.Key.GetHashCode() % 1000 == id).Key, out int processId))
+                    if (processHotkeyMapping.TryGetValue(hotkey, out int processId))
                     {
                         var process = processes.FirstOrDefault(p => p.Id == processId);
                         if (process != null)
@@ -320,28 +676,28 @@ namespace ProcessSwitcher
         {
             if (process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
             {
-
                 ShowWindow(process.MainWindowHandle, SW_RESTORE);
-
                 SetForegroundWindow(process.MainWindowHandle);
             }
         }
 
         private void SaveHotkeys()
         {
-            File.WriteAllLines(ConfigFile, hotkeyMapping.Select(kvp => $"{kvp.Key}:{kvp.Value}"));
+            File.WriteAllLines("hotkeys.config", processHotkeyMapping.Select(kvp => $"{kvp.Key}:{kvp.Value}"));
         }
 
         private void LoadHotkeys()
         {
-            if (File.Exists(ConfigFile))
+            processHotkeyMapping.Clear();
+
+            if (File.Exists("hotkeys.config"))
             {
-                foreach (var line in File.ReadAllLines(ConfigFile))
+                foreach (var line in File.ReadAllLines("hotkeys.config"))
                 {
                     var parts = line.Split(':');
                     if (Enum.TryParse(parts[0], out Keys key) && int.TryParse(parts[1], out int processId))
                     {
-                        hotkeyMapping[key] = processId;
+                        processHotkeyMapping[key] = processId;
                     }
                 }
             }
@@ -350,19 +706,12 @@ namespace ProcessSwitcher
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             UnregisterGlobalHotkeys();
+            SaveSettings();
+            comboCancellationTokenSource?.Dispose(); // Descartar o CancellationTokenSource
         }
 
         private void btnUpdateHotkeys_Click(object sender, EventArgs e)
         {
-            hotkeyMapping.Clear();
-            foreach (var kvp in hotkeySelectors)
-            {
-                if (Enum.TryParse(kvp.Value.Text, out Keys selectedKey))
-                {
-                    hotkeyMapping[selectedKey] = kvp.Key;
-                }
-            }
-
             SaveHotkeys();
             RegisterGlobalHotkeys();
             MessageBox.Show("Atalhos atualizados com sucesso!", "Sucesso", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -371,6 +720,7 @@ namespace ProcessSwitcher
         private void btnRefreshProcesses_Click(object sender, EventArgs e)
         {
             LoadProcesses();
+            UpdateComboListBox();
             MessageBox.Show("Lista de processos atualizada.", "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
@@ -382,61 +732,14 @@ namespace ProcessSwitcher
             sendKeysHotkey = e.KeyCode;
             txtSendKeysHotkey.Text = e.KeyCode.ToString();
             RegisterGlobalHotkeys();
+            e.SuppressKeyPress = true;
         }
 
-        private void SendKeysToAllProcesses()
+        private void chkSwitchWindow_CheckedChanged(object sender, EventArgs e)
         {
-            if (selectedProcesses.Count == 0)
-            {
-                MessageBox.Show("Nenhum processo selecionado.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            List<Process> orderedProcesses = new List<Process>();
-            Process? firstProcess = null;
-
-            foreach (var process in processes)
-            {
-                if (selectedProcesses.Contains(process.Id) && process != null && !process.HasExited && process.MainWindowHandle != IntPtr.Zero)
-                {
-                    if (firstProcess == null)
-                        firstProcess = process; 
-
-                    orderedProcesses.Add(process);
-
-                    if (process.Id == finalizerProcessId)
-                    {
-
-                        break; 
-                    }
-                }
-            }
-
-            
-            foreach (var process in orderedProcesses)
-            {
-                ShowWindow(process.MainWindowHandle, SW_RESTORE);
-                SwitchToProcess(process);
-                System.Threading.Thread.Sleep(100);
-
-                SendKeysToProcess();
-                System.Threading.Thread.Sleep(200);
-            }
-
-            
-            if (firstProcess != null)
-            {
-                ShowWindow(firstProcess.MainWindowHandle, SW_RESTORE);
-                SwitchToProcess(firstProcess);
-                System.Threading.Thread.Sleep(100);
-
-                SendKeysToProcess();
-            }
+            shouldSwitchWindowForCombo = chkSwitchWindow.Checked;
+            SaveSettings();
         }
-
-
-
-
 
         private void ProcessPanel_DragEnter(object sender, DragEventArgs e)
         {
@@ -456,7 +759,7 @@ namespace ProcessSwitcher
                 int oldIndex = processPanel.Controls.GetChildIndex(draggedRow);
 
                 int newIndex = processPanel.PointToClient(new Point(e.X, e.Y)).Y / draggedRow.Height;
-                newIndex = newIndex < 0 ? 0 : newIndex;  
+                newIndex = newIndex < 0 ? 0 : newIndex;
 
 
                 if (newIndex >= processPanel.Controls.Count)
@@ -468,6 +771,7 @@ namespace ProcessSwitcher
                 {
                     processPanel.Controls.SetChildIndex(draggedRow, newIndex);
                     ReorderProcesses();
+                    UpdateComboListBox();
                 }
             }
         }
@@ -475,7 +779,6 @@ namespace ProcessSwitcher
         private void ReorderProcesses()
         {
             List<Process> reorderedList = new List<Process>();
-            Dictionary<Keys, int> newHotkeyMapping = new Dictionary<Keys, int>();
 
             foreach (FlowLayoutPanel row in processPanel.Controls)
             {
@@ -491,33 +794,97 @@ namespace ProcessSwitcher
 
             processes = reorderedList;
 
-
-            foreach (var kvp in hotkeyMapping)
+            var newProcessHotkeyMapping = new Dictionary<Keys, int>();
+            foreach (var kvp in processHotkeyMapping)
             {
                 if (processes.Any(p => p.Id == kvp.Value))
                 {
-                    newHotkeyMapping[kvp.Key] = kvp.Value;
+                    newProcessHotkeyMapping[kvp.Key] = kvp.Value;
                 }
             }
+            processHotkeyMapping = newProcessHotkeyMapping;
 
-            hotkeyMapping = newHotkeyMapping;
             SaveHotkeys();
             RegisterGlobalHotkeys();
         }
 
         private Image LoadEmbeddedImage(string resourceName)
-{
-    var assembly = Assembly.GetExecutingAssembly();
-    string resourcePath = $"ProcessSwitcher.Resources.{resourceName}";
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            string resourcePath = $"ProcessSwitcher.Resources.{resourceName}";
 
-    using (var stream = assembly.GetManifestResourceStream(resourcePath))
-    {
-        return stream != null ? Image.FromStream(stream) : new Bitmap(1, 1);
-    }
-}
+            using (var stream = assembly.GetManifestResourceStream(resourcePath))
+            {
+                return stream != null ? Image.FromStream(stream) : new Bitmap(1, 1);
+            }
+        }
+        
+        private void UpdateComboListBox()
+        {
+            if (comboListBox != null)
+            {
+                comboListBox.Items.Clear();
+                foreach (var processId in comboProcessOrder)
+                {
+                    var process = processes.FirstOrDefault(p => p.Id == processId);
+                    if (process != null)
+                    {
+                        string title = customTitles.ContainsKey(process.Id) ? customTitles[process.Id] : process.MainWindowTitle;
+                        comboListBox.Items.Add(new ProcessItem(process.Id, title));
+                    }
+                }
+            }
+        }
 
+        private void MoveComboProcessUp()
+        {
+            if (comboListBox != null && comboListBox.SelectedItem is ProcessItem selectedItem)
+            {
+                int selectedIndex = comboListBox.SelectedIndex;
+                if (selectedIndex > 0)
+                {
+                    int processIdToMove = selectedItem.ProcessId;
+                    comboProcessOrder.RemoveAt(selectedIndex);
+                    comboProcessOrder.Insert(selectedIndex - 1, processIdToMove);
+                    SaveComboProcesses();
+                    UpdateComboListBox();
+                    comboListBox.SelectedIndex = selectedIndex - 1;
+                }
+            }
+        }
 
+        private void MoveComboProcessDown()
+        {
+            if (comboListBox != null && comboListBox.SelectedItem is ProcessItem selectedItem)
+            {
+                int selectedIndex = comboListBox.SelectedIndex;
+                if (selectedIndex < comboListBox.Items.Count - 1)
+                {
+                    int processIdToMove = selectedItem.ProcessId;
+                    comboProcessOrder.RemoveAt(selectedIndex);
+                    comboProcessOrder.Insert(selectedIndex + 1, processIdToMove);
+                    SaveComboProcesses();
+                    UpdateComboListBox();
+                    comboListBox.SelectedIndex = selectedIndex + 1;
+                }
+            }
+        }
 
+        private class ProcessItem
+        {
+            public int ProcessId { get; set; }
+            public string DisplayName { get; set; }
 
+            public ProcessItem(int processId, string displayName)
+            {
+                ProcessId = processId;
+                DisplayName = displayName;
+            }
+
+            public override string ToString()
+            {
+                return DisplayName;
+            }
+        }
     }
 }
