@@ -161,7 +161,7 @@ namespace ProcessSwitcher
             RegisterGlobalHotkeys();
             UpdateComboListBox();
             UpdateSettingsUI();
-            InitializeComboKeysUI(); // Chama o método aqui
+            InitializeComboKeysUI();
             UpdateComboHotkeyText();
         }
 
@@ -316,12 +316,10 @@ namespace ProcessSwitcher
             }
         }
 
-        // Método principal do combo, agora recebe um CancellationToken para ser cancelável
         private async Task ExecuteComboAsync(CancellationToken cancellationToken)
         {
-            // Reset do estado para indicar que está ativo
             isComboActive = true;
-            UpdateComboHotkeyText(); // Atualiza o texto para "PARAR COMBO"
+            UpdateComboHotkeyText();
 
             try
             {
@@ -362,14 +360,14 @@ namespace ProcessSwitcher
 
                 Process? firstProcessInCombo = orderedComboProcesses.FirstOrDefault();
                 uint currentThreadId = GetCurrentThreadId();
-                IntPtr originalForegroundWindow = GetForegroundWindow(); // Guarda a janela que estava em foco
+                IntPtr originalForegroundWindow = GetForegroundWindow();
 
                 foreach (var process in orderedComboProcesses)
                 {
                     if (cancellationToken.IsCancellationRequested)
                     {
                         Debug.WriteLine("Combo cancelado antes de terminar a iteração.");
-                        return; // Sai se cancelado
+                        return;
                     }
 
                     if (process == null || process.HasExited || process.MainWindowHandle == IntPtr.Zero)
@@ -393,30 +391,21 @@ namespace ProcessSwitcher
 
                         if (shouldSwitchWindowForCombo)
                         {
+                            // OPÇÃO: Trocar para a janela (comportamento padrão)
                             ShowWindow(process.MainWindowHandle, SW_RESTORE); 
                             SetForegroundWindow(process.MainWindowHandle);
-                            await Task.Delay(300, cancellationToken);
+                            await Task.Delay(300, cancellationToken); 
                         }
                         else 
                         {
-                            IntPtr currentActiveWindow = GetForegroundWindow(); 
+                            // OPÇÃO: Tentar combo em segundo plano (sem piscar/roubar foco)
+                            // Para Perfect World, que permite input em segundo plano, não fazemos ShowWindow/SetForegroundWindow.
+                            // Apenas um pequeno delay para estabilidade antes de SendInput.
+                            await Task.Delay(100, cancellationToken); 
                             
-                            if (currentActiveWindow != process.MainWindowHandle) 
-                            {
-                                ShowWindow(process.MainWindowHandle, SW_RESTORE);
-                                SetForegroundWindow(process.MainWindowHandle);
-                                await Task.Delay(200, cancellationToken); 
-                                
-                                if (currentActiveWindow != IntPtr.Zero && GetForegroundWindow() == process.MainWindowHandle) 
-                                {
-                                    SetForegroundWindow(currentActiveWindow);
-                                    await Task.Delay(100, cancellationToken); 
-                                }
-                            }
-                            else
-                            {
-                                await Task.Delay(50, cancellationToken); 
-                            }
+                            // Se a janela estiver minimizada, ShowWindow(SW_RESTORE) seria necessário para torná-la visível.
+                            // Mas se a intenção é que não roube foco, não podemos usar SetForegroundWindow.
+                            // Para PW, que permite, confiamos que AttachThreadInput + SendInput é suficiente.
                         }
 
                         SendKeysToProcess(comboKeysToSend); 
@@ -479,23 +468,8 @@ namespace ProcessSwitcher
                         }
                         else
                         {
-                            IntPtr currentActiveWindow = GetForegroundWindow(); 
-                            if (currentActiveWindow != targetProcessAfterCombo.MainWindowHandle)
-                            {
-                                ShowWindow(targetProcessAfterCombo.MainWindowHandle, SW_RESTORE);
-                                SetForegroundWindow(targetProcessAfterCombo.MainWindowHandle);
-                                await Task.Delay(200, cancellationToken);
-                                
-                                if (currentActiveWindow != IntPtr.Zero && GetForegroundWindow() == targetProcessAfterCombo.MainWindowHandle)
-                                {
-                                    SetForegroundWindow(currentActiveWindow);
-                                    await Task.Delay(100, cancellationToken);
-                                }
-                            }
-                            else
-                            {
-                                await Task.Delay(50, cancellationToken);
-                            }
+                            // Comportamento em segundo plano para o finalizador/retorno
+                            await Task.Delay(100, cancellationToken);
                         }
                         SendKeysToProcess(comboKeysToSend);
                     }
@@ -517,6 +491,9 @@ namespace ProcessSwitcher
                     }
                 }
 
+                // Ação final: tenta retornar à janela original que estava em foco,
+                // SOMENTE se a opção de NÃO trocar de janela foi selecionada
+                // e o foco ainda não retornou naturalmente.
                 if (!shouldSwitchWindowForCombo && originalForegroundWindow != IntPtr.Zero && GetForegroundWindow() != originalForegroundWindow)
                 {
                      try
@@ -545,6 +522,7 @@ namespace ProcessSwitcher
             }
             finally
             {
+                // Garante que o estado é atualizado mesmo que a Task seja cancelada
                 isComboActive = false;
                 UpdateComboHotkeyText();
             }
@@ -770,7 +748,6 @@ namespace ProcessSwitcher
             registeredHotkeys.Clear();
         }
 
-        // Método chamado quando o hotkey do combo é acionado
         protected override void WndProc(ref Message m)
         {
             const int WM_HOTKEY = 0x0312;
@@ -780,30 +757,25 @@ namespace ProcessSwitcher
 
                 if (hotkeyId == sendKeysHotkeyId)
                 {
-                    // Lógica para alternar (toggle) o estado do combo
                     if (isComboActive)
                     {
-                        // Se o combo estiver ativo, cancela a execução
                         comboCancellationTokenSource?.Cancel();
                         Debug.WriteLine("Combo cancelado manualmente.");
                     }
                     else
                     {
-                        // Se o combo não estiver ativo, inicia-o
                         if ((DateTime.Now - lastComboExecutionTime) < comboDebounceInterval)
                         {
                             Debug.WriteLine("Combo hotkey acionado muito rapidamente. Ignorando.");
                             return;
                         }
 
-                        // Cria um novo CancellationTokenSource para a nova execução
-                        comboCancellationTokenSource?.Dispose(); // Descarta o anterior se houver
+                        comboCancellationTokenSource?.Dispose();
                         comboCancellationTokenSource = new CancellationTokenSource();
                         CancellationToken cancellationToken = comboCancellationTokenSource.Token;
 
-                        lastComboExecutionTime = DateTime.Now; // Marca o tempo de início
+                        lastComboExecutionTime = DateTime.Now;
 
-                        // Inicia a execução do combo em uma nova Task
                         Task.Run(async () => await ExecuteComboAsync(cancellationToken), cancellationToken);
                     }
                 }
@@ -826,8 +798,6 @@ namespace ProcessSwitcher
         // Atualiza o texto do Hotkey (TextBox) para refletir o estado de ativo/inativo
         private void UpdateComboHotkeyText()
         {
-            // O Invoke é usado aqui porque esta função pode ser chamada de uma thread de background
-            // (após a Task do combo), e modificações na UI devem ser feitas na UI thread.
             if (txtSendKeysHotkey.InvokeRequired)
             {
                 txtSendKeysHotkey.Invoke(new Action(UpdateComboHotkeyText));
@@ -837,7 +807,6 @@ namespace ProcessSwitcher
             if (isComboActive)
             {
                 txtSendKeysHotkey.Text = "PARAR COMBO";
-                // É seguro acessar BorderColor aqui porque txtSendKeysHotkey é do tipo RoundedTextBox
                 if (txtSendKeysHotkey is RoundedTextBox rtb)
                 {
                     rtb.BorderColor = Color.Red;
@@ -846,7 +815,6 @@ namespace ProcessSwitcher
             else
             {
                 txtSendKeysHotkey.Text = sendKeysHotkey != Keys.None ? sendKeysHotkey.ToString() : "Configurar Hotkey";
-                // É seguro acessar BorderColor aqui
                 if (txtSendKeysHotkey is RoundedTextBox rtb)
                 {
                     rtb.BorderColor = Color.Black;
@@ -911,8 +879,6 @@ namespace ProcessSwitcher
 
         private void txtSendKeysHotkey_KeyDown(object sender, KeyEventArgs e)
         {
-            // Este evento agora é usado APENAS para configurar o hotkey do combo.
-            // A lógica de iniciar/parar o combo é tratada no WndProc pelo hotkey global.
             if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu)
                 return;
 
@@ -920,7 +886,7 @@ namespace ProcessSwitcher
             txtSendKeysHotkey.Text = e.KeyCode.ToString();
             RegisterGlobalHotkeys();
             e.SuppressKeyPress = true;
-            UpdateComboHotkeyText(); // Atualiza o texto para o hotkey configurado
+            UpdateComboHotkeyText();
         }
 
         private void chkSwitchWindow_CheckedChanged(object sender, EventArgs e)
@@ -1024,11 +990,12 @@ namespace ProcessSwitcher
             }
         }
 
-        // CORREÇÃO: Método InitializeComboKeysUI adicionado ao Form1.cs
         private void InitializeComboKeysUI()
         {
             if (chkListBoxComboKeys == null) return;
 
+            chkListBoxComboKeys.ItemCheck -= ChkListBoxComboKeys_ItemCheck;
+            
             chkListBoxComboKeys.Items.Clear();
             for (int i = 1; i <= 12; i++)
             {
@@ -1037,24 +1004,25 @@ namespace ProcessSwitcher
                 chkListBoxComboKeys.Items.Add(fKey.ToString(), isChecked);
             }
 
-            chkListBoxComboKeys.ItemCheck += (sender, e) =>
-            {
-                Keys changedKey = (Keys)Enum.Parse(typeof(Keys), chkListBoxComboKeys.Items[e.Index].ToString()!);
-                if (e.NewValue == CheckState.Checked)
-                {
-                    if (!comboKeysToSend.Contains(changedKey))
-                    {
-                        comboKeysToSend.Add(changedKey);
-                    }
-                }
-                else
-                {
-                    comboKeysToSend.Remove(changedKey);
-                }
-                SaveComboKeys();
-            };
+            chkListBoxComboKeys.ItemCheck += ChkListBoxComboKeys_ItemCheck;
         }
 
+        private void ChkListBoxComboKeys_ItemCheck(object? sender, ItemCheckEventArgs e)
+        {
+            Keys changedKey = (Keys)Enum.Parse(typeof(Keys), chkListBoxComboKeys.Items[e.Index].ToString()!);
+            if (e.NewValue == CheckState.Checked)
+            {
+                if (!comboKeysToSend.Contains(changedKey))
+                {
+                    comboKeysToSend.Add(changedKey);
+                }
+            }
+            else
+            {
+                comboKeysToSend.Remove(changedKey);
+            }
+            SaveComboKeys();
+        }
 
         private void MoveComboProcessUp()
         {

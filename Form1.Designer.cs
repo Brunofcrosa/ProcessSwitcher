@@ -8,10 +8,13 @@ namespace ProcessSwitcher
 {
     partial class Form1 : Form
     {
+        // Declarações de TODOS os controles UI.
+        // É CRUCIAL que cada variável seja declarada APENAS UMA VEZ AQUI.
         private FlowLayoutPanel processPanel;
         private Button btnUpdateHotkeys;
         private Button btnRefreshProcesses;
-        private TextBox txtSendKeysHotkey;
+        // CORREÇÃO: Declarar txtSendKeysHotkey como RoundedTextBox
+        private RoundedTextBox txtSendKeysHotkey;
         private Label lblSendKeysHotkey;
         private Label copyright;
 
@@ -66,6 +69,7 @@ namespace ProcessSwitcher
                 BackColor = Color.LightGray,
             };
 
+            // Inicialização do txtSendKeysHotkey como RoundedTextBox
             this.txtSendKeysHotkey = new RoundedTextBox
             {
                 Location = new Point(160, 370),
@@ -97,6 +101,7 @@ namespace ProcessSwitcher
             processPanel.DragEnter += ProcessPanel_DragEnter;
             processPanel.DragDrop += ProcessPanel_DragDrop;
             
+            // Inicialização dos componentes do combo de processos
             this.lblComboProcesses = new Label
             {
                 Text = "Processos no Combo (ordem de execução):",
@@ -126,6 +131,7 @@ namespace ProcessSwitcher
             };
             this.chkSwitchWindow.CheckedChanged += new EventHandler(this.chkSwitchWindow_CheckedChanged);
 
+            // Inicialização dos NOVOS componentes para seleção de teclas do combo
             this.lblComboKeys = new Label
             {
                 Text = "Teclas do Combo:",
