@@ -8,8 +8,6 @@ namespace ProcessSwitcher
 {
     partial class Form1 : Form
     {
-        // Declarações de TODOS os controles UI.
-        // Nenhuma dessas variáveis deve ser declarada novamente em Form1.cs.
         private FlowLayoutPanel processPanel;
         private Button btnUpdateHotkeys;
         private Button btnRefreshProcesses;
@@ -21,11 +19,13 @@ namespace ProcessSwitcher
         private Button btnMoveUp;
         private Button btnMoveDown;
         private Label lblComboProcesses;
-        private CheckBox chkSwitchWindow; // Declaração da nova CheckBox
+        private CheckBox chkSwitchWindow;
+
+        private CheckedListBox chkListBoxComboKeys;
+        private Label lblComboKeys;
 
         private void InitializeComponent()
         {
-            // Inicialização dos componentes existentes
             this.processPanel = new FlowLayoutPanel
             {
                 FlowDirection = FlowDirection.TopDown,
@@ -35,7 +35,6 @@ namespace ProcessSwitcher
                 Padding = new Padding(5)
             };
 
-            // Criar botões usando o método auxiliar e linkar eventos
             this.btnRefreshProcesses = CreateButton("", 10, 400, () => btnRefreshProcesses_Click(null, null), "refresh.ico");
             this.btnUpdateHotkeys = CreateButton("", 140, 400, () => btnUpdateHotkeys_Click(null, null), "check.ico");
 
@@ -75,7 +74,7 @@ namespace ProcessSwitcher
                 TextAlign = HorizontalAlignment.Center,
                 Cursor = Cursors.Hand,
                 BorderRadius = 15,
-                BorderColor = Color.Black // Correção: Atribuindo valor
+                BorderColor = Color.Black 
             };
 
             this.txtSendKeysHotkey.KeyDown += (sender, e) =>
@@ -98,7 +97,6 @@ namespace ProcessSwitcher
             processPanel.DragEnter += ProcessPanel_DragEnter;
             processPanel.DragDrop += ProcessPanel_DragDrop;
             
-            // Inicialização dos componentes do combo
             this.lblComboProcesses = new Label
             {
                 Text = "Processos no Combo (ordem de execução):",
@@ -119,18 +117,29 @@ namespace ProcessSwitcher
             this.btnMoveDown = CreateButton("Mover Abaixo", 365, 240, MoveComboProcessDown);
             this.btnMoveDown.Size = new Size(85, 30);
 
-            // Nova CheckBox para controlar a troca de janela
             this.chkSwitchWindow = new CheckBox
             {
                 Text = "Trocar para a janela ao Combar",
-                Location = new Point(270, 280), // Ajuste a posição conforme necessário
+                Location = new Point(270, 280),
                 AutoSize = true,
-                Checked = true // Valor padrão
+                Checked = true
             };
             this.chkSwitchWindow.CheckedChanged += new EventHandler(this.chkSwitchWindow_CheckedChanged);
 
+            this.lblComboKeys = new Label
+            {
+                Text = "Teclas do Combo:",
+                Location = new Point(460, 10),
+                AutoSize = true
+            };
 
-            // Adiciona todos os controles ao formulário
+            this.chkListBoxComboKeys = new CheckedListBox
+            {
+                Location = new Point(460, 30),
+                Size = new Size(100, 200),
+                CheckOnClick = true
+            };
+
             this.Controls.Add(this.copyright);
             this.Controls.Add(this.processPanel);
             this.Controls.Add(this.btnRefreshProcesses);
@@ -143,19 +152,17 @@ namespace ProcessSwitcher
             this.Controls.Add(this.comboListBox);
             this.Controls.Add(this.btnMoveUp);
             this.Controls.Add(this.btnMoveDown);
-            this.Controls.Add(this.chkSwitchWindow); // Adiciona a nova CheckBox
+            this.Controls.Add(this.chkSwitchWindow);
+            this.Controls.Add(this.lblComboKeys);
+            this.Controls.Add(this.chkListBoxComboKeys);
            
-            this.ClientSize = new Size(470, 470); 
+            this.ClientSize = new Size(570, 470); 
             this.Text = "Process Switcher";
             this.FormClosing += new FormClosingEventHandler(this.Form1_FormClosing);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.StartPosition = FormStartPosition.CenterScreen; 
         }
-
-        // Importante: Métodos como CreateButton, RoundedButton e RoundedTextBox
-        // devem permanecer aqui, pois são classes aninhadas ou auxiliares
-        // que são parte do design do formulário.
 
         private Button CreateButton(string text, int x, int y, Action clickHandler, string iconName = null)
         {
@@ -175,7 +182,6 @@ namespace ProcessSwitcher
 
             if (!string.IsNullOrEmpty(iconName))
             {
-                // Note: LoadEmbeddedImage é um método em Form1.cs, mas é acessível aqui por ser partial
                 Image originalImage = LoadEmbeddedImage(iconName);
                 if (originalImage != null)
                 {
@@ -229,7 +235,6 @@ namespace ProcessSwitcher
                 set { borderRadius = value; this.Invalidate(); }
             }
 
-            // Correção: Adicionado 'set' público para permitir atribuição
             public Color BorderColor
             {
                 get { return borderColor; }
